@@ -53,8 +53,8 @@ def multistart(grid_size=21):
     """Run Newton/Armijo from a grid spanning the required square."""
     axis = np.linspace(-2, 2, grid_size)
     starts = [(u, v) for u in axis for v in axis]
-    # The optional -gradient safeguard is taught gradient descent, recorded separately.
-    runs = [newton(x, fallback=True) for x in starts]
+    # A failed start does not prevent the remaining Newton runs.
+    runs = [newton(x) for x in starts]
     return starts, runs, distinct_stationary_points(runs)
 
 
@@ -68,7 +68,6 @@ def run(output="results", grid_size=21):
                          value=r["values"][-1], gradient_norm=r["gradient_norms"][-1],
                          iterations=r["iterations"], status=r["status"],
                          newton_steps=r["step_kinds"].count("newton"),
-                         fallback_steps=sum(k.startswith("fallback") for k in r["step_kinds"]),
                          classification=classify_stationary_point(r["x"])["classification"]
                          if r["status"] == "converged" else "not_classified"))
     write_csv(root/"tables/ex1_part_c_multistart.csv", rows)
@@ -86,7 +85,9 @@ def run(output="results", grid_size=21):
         ax.scatter(p["x1"], p["x2"], marker=marker, s=140 if best else 55,
                    color="crimson" if best else "darkorange", label=label, zorder=4)
         ax.annotate(str(p["point_id"]), (p["x1"], p["x2"]), xytext=(7, 7), textcoords="offset points")
-    ax.set(xlabel="$x_1$", ylabel="$x_2$", title="1(c): objective contours and stationary points",
+    converged = sum(r["status"] == "converged" for r in runs)
+    ax.set(xlabel="$x_1$", ylabel="$x_2$",
+           title=f"1(c): strict Newton/Armijo; {converged}/{len(runs)} starts converged",
            xlim=(-2, 2), ylim=(-2, 2), aspect="equal")
     ax.legend(fontsize=8)
     save_figure(fig, root/"figures/ex1_part_c_contours.png")

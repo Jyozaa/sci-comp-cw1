@@ -59,11 +59,13 @@ def test_armijo_backtracking_and_failure():
 
 def test_singular_hessian_and_non_descent_are_not_silently_accepted():
     kw = dict(fun=lambda x: .5*x @ x, grad=lambda x: x, hess=lambda x: np.zeros((2, 2)))
-    assert newton((1, 2), **kw)["status"] == "numerical_failure"
-    r = newton((1, 2), fallback=True, **kw)
-    assert r["status"] == "converged" and r["step_kinds"][1] == "fallback_singular"
+    r = newton((1, 2), **kw)
+    assert r["status"] == "numerical_failure" and r["iterations"] == 0
+    assert_allclose(r["x"], [1, 2])
     kw["hess"] = lambda x: -np.eye(2)
-    assert newton((1, 2), **kw)["status"] == "line_search_failure"
+    r = newton((1, 2), **kw)
+    assert r["status"] == "line_search_failure" and r["iterations"] == 0
+    assert_allclose(r["x"], [1, 2])
 
 
 @pytest.mark.parametrize("solver", [newton, bfgs])

@@ -53,11 +53,13 @@ need their written derivations in the separately prepared report.
   at most 200 updates. These stopping numbers are implementation choices.
   The multistart grid is 21×21 over [-2,2]²; points within 1e-4 are merged.
 - Newton/Armijo starts at alpha=1 and halves rejected steps (c1=1e-4, up to
-  50 halvings). The library defaults to no fallback. 1(b/c) explicitly allow
-  -gradient if the Hessian is singular/poorly conditioned (limit 1e12) or the
-  Newton direction is not descent; histories distinguish those steps.
-- **1(e):** prescribed x0=(-2,1), alpha=1 and BFGS omega=.01. Line search and
-  Newton fallback are disabled. Invalid BFGS curvature is reported as failure,
+  50 halvings). 1(b/c) use only the Newton direction. A singular/poorly
+  conditioned Hessian (limit 1e12) gives `numerical_failure`; a non-descent
+  direction or exhausted Armijo search gives `line_search_failure`. No gradient
+  descent is substituted. All 441 starts are attempted; only converged runs
+  are classified (148 converged, 293 non-descent failures in the current grid).
+- **1(e):** prescribed x0=(-2,1), alpha=1 and BFGS omega=.01. Line search
+  is disabled. Invalid BFGS curvature is reported as failure,
   never repaired by editing the printed inverse update or resetting B.
 - **2(d/f):** prescribed x0=(0,-1), step=.05, tol=1e-6, maxit=200; 2(f) uses
   gamma=.1,.3,.7. Following Unit 10, stopping uses ||F||₂, not its square or the

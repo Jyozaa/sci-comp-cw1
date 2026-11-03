@@ -18,32 +18,26 @@ for _ in range(maxit):
         break
 ```
 
-The following contiguous block performs the linear solve, optional fallback,
-step selection and trial evaluation. The default is `fallback=False`; 1(c)
-explicitly enables it. The history records `kind` so a steepest-descent
-fallback is not described as a Newton step.
+The following contiguous block performs the strict Newton solve, step selection
+and trial evaluation. An unusable or non-descent Newton direction fails the run;
+no other direction is substituted. This is the same loop used in 1(c).
 
 ```python
 H = hess(x)
 if not np.all(np.isfinite(H)):
     status = "numerical_failure"
     break
-kind = "newton"
 try:
     if np.linalg.cond(H) > 1e12:
         raise np.linalg.LinAlgError("singular or poorly conditioned Hessian")
     # Compute the Newton direction by solving H*delta=-grad.
     delta = np.linalg.solve(H, -g)
 except np.linalg.LinAlgError:
-    if not fallback:
-        status = "numerical_failure"
-        break
-    delta, kind = -g, "fallback_singular"
+    status = "numerical_failure"
+    break
 if line_search and g @ delta >= 0:
-    if not fallback:
-        status = "line_search_failure"
-        break
-    delta, kind = -g, "fallback_non_descent"
+    status = "line_search_failure"
+    break
 alpha = armijo(fun, x, value, g, delta) if line_search else 1.0
 if alpha is None:
     status = "line_search_failure"
@@ -59,8 +53,8 @@ x, value, g = xn, vn, gn
 ```
 
 The omitted continuation appends the accepted point, objective, new norm `nn`,
-alpha, direction and `kind` to the history lists. After the loop it checks the
-final norm again, so convergence on the last permitted update is recognised.
+alpha, direction and step kind `"newton"` to the history lists. After the loop
+it checks the final norm again, so convergence on the last permitted update is recognised.
 A singular/poorly conditioned Hessian, exhausted line search, nonfinite trial
 or unchanged floating-point iterate is reported as a failure rather than
 convergence. The condition threshold is the stated convention `1e12`.
@@ -85,7 +79,7 @@ def armijo(fun, x, value, g, delta, c1=1e-4, max_backtracks=50):
 ```
 
 The brief requests Armijo; `c1=1e-4`, halving and 50 backtracks are implementation
-conventions. In 1(e), `line_search=False, fallback=False` uses exactly alpha=1.
+conventions. In 1(e), `line_search=False` uses exactly alpha=1.
 
 ## Exercise 1(d): inverse-Hessian BFGS
 

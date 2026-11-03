@@ -3,6 +3,81 @@
 Baseline: commit `89bcd30dad54507e926fff031e1c0735112f6e64`.
 Audit date: 3 November 2026. No automatic commit or push is authorised.
 
+## Final strict-Newton correction — 3 November 2026
+
+Correction baseline: commit `c5da10e2d11670765000fb5fba0aaf10aff04434`.
+This section supersedes the fallback-enabled behaviour and 441-converged
+results in the historical audit below. Those earlier entries describe that
+previous revision, not the current solver. This correction makes no commit
+or push and introduces no new algorithm, study or reporting framework.
+
+| File(s) changed | Change and reason | Mathematical/output effect |
+| --- | --- | --- |
+| `src/sc_cw1/exercise1/part_b_newton.py` | Remove the `fallback` parameter and both -gradient substitution branches, including the 1(b) demonstration call. Retain the same `np.linalg.solve(H,-g)`, Armijo function/constants, finite/condition checks and stopping rule. | Unusable Hessians/solves give `numerical_failure`; non-descent directions or exhausted searches give `line_search_failure`. Last accepted iterate is retained. Every accepted direction is Newton. |
+| `src/sc_cw1/exercise1/part_c_minima.py` | Remove fallback-enabled calls and obsolete fallback-count column. Keep all 441 independent starts, convergence filtering, distance clustering, Hessian classification, objective comparisons and contour domain. Show computed convergence count in figure title. | 148 converged, 293 failed; failed rows are `not_classified` and excluded from clusters/counts. No early exit from the start loop. |
+| `src/sc_cw1/exercise1/part_e_comparison.py` | Remove only the obsolete `fallback=False` argument. Keep `line_search=False`, x0=(-2,1), alpha=1, omega=.01. | Fixed-step Newton and BFGS behaviour unchanged. |
+| `src/sc_cw1/experiments.py`, generated `RESULTS.md` | Replace fallback prose with strict-Newton statuses, failed-run handling and stationarity-versus-minimum explanation. Keep existing status counter/results generator. | Computed 148/293 statuses and 63/81/4 cluster counts, without hardcoded solver answers. Exercise 2 reporting/calculations unchanged. |
+| `README.md`, `CODE_MAP.md`, `REVIEW_REQUIRED.md` | Replace current fallback guidance with strict-Newton behaviour, status meanings and convergence-only classification. | Accurate current usage/limitations; no change to prescribed settings. |
+| `REPORT_SNIPPETS.md` | Replace only Newton excerpts/prose with literal current source. BFGS/momentum listings unchanged. | Report listing matches the executed strict solver. |
+| `tests/test_exercise1.py` | Update representative-start expectations; check H*delta=-grad and Armijo for every accepted step; verify actual 148/293 regression counts and non-descent failure directions; include real failed runs in clustering-exclusion test. | Regression references are test assertions, never values forced in the solver. All 441 starts are still executed. |
+| `tests/test_numerical_methods.py` | Replace fallback-success assertions with singular/non-descent failure, zero updates and unchanged initial point. Preserve other checks. | Tests detect any substitution of another direction. |
+| `results/tables/ex1_part_c_multistart.csv` | Regenerate all 441 outcomes; remove obsolete fallback column. | Previously fallback-using runs now stop unsuccessfully at their first invalid Newton direction; failed runs are not classified. |
+| `results/tables/ex1_part_c_stationary_points.csv` | Regenerate from genuinely converged runs only. | Same two minima and saddle; cluster membership changes and tiny representative rounding differences are expected. |
+| `results/figures/ex1_part_c_contours.png` | Regenerate objective contours and stationary markers with a strict-Newton, 148/441-converged title. | Same domain/function and numerical minimum ordering; accurate method/count labels. |
+| `AUDIT_CHANGELOG.md` | Record this narrow correction and distinguish it from historical fallback-enabled results. | No numerical effect. |
+
+### Executed verification
+
+- `.venv/bin/python -m pytest -q`: **32 passed in 0.43s**, no failures.
+  Tests verify Newton equations, accepted Armijo inequalities, failure without
+  replacement steps, all-start execution, convergence-only clustering,
+  singular/nonfinite safeguards and fixed-unit-step comparison settings.
+- `.venv/bin/python scripts/run_all.py`: **exit 0**, regenerated all six
+  required figures and eleven CSVs using the unchanged prescribed parameters.
+- Direct comparison with baseline files: all **148** converged multistart
+  outcome rows exactly match the previous zero-fallback runs in every retained
+  column. The **293** changed outcomes correspond exactly to the previous
+  fallback-using runs. Recomputing their terminal Newton directions confirms
+  all have nonnegative gradient-direction products; there are no additional
+  singular-solve or exhausted-backtracking failures in this grid.
+- The strict experiment exactly matches the independent review's 148/293
+  regression reference. No discrepancy required an algorithm change.
+- All **14** other generated output files are byte-for-byte identical to the
+  baseline: the 1(e) figure and both histories, every Exercise 2 figure/table,
+  and the comparison summary. Newton/BFGS still take 5/12 updates; Exercise 2
+  still takes 138 and 64/36/79 updates.
+- Exercise 2 source/tests, the Exercise 1 analytical model, BFGS source and
+  shared Armijo implementation are unchanged. The 1(e) call-site edit only
+  removes a parameter that no longer exists.
+- The package was rebuilt/reinstalled successfully; an independent import
+  from `/tmp` using the virtual environment confirms the `fallback` parameter
+  is absent and a non-descent start fails without taking a step. Final review
+  verified all ten report excerpts against current source, unchanged shared
+  Armijo code, no stale fallback calls in runnable code/current guidance,
+  clean `git diff --check`, unchanged HEAD and an empty staging area.
+- All six PNGs were decoded and checked as 300 DPI. The changed 1(c) figure
+  was opened and visually inspected: title, axes, minimum/saddle markers,
+  legend and [-2,2]² domain are readable and correct. The other five PNGs
+  are byte-identical to the previously inspected figures.
+
+| Stationary point | Previous cluster | Strict-Newton cluster | Current objective |
+| --- | --- | --- | --- |
+| Minimum near (-1.185303,1.185303) | 205 | 63 | -1.4991448256027757 |
+| Minimum near (-.659465,.659465) | 232 | 81 | -.5599288237573337 |
+| Saddle near (-.742325,.742325) | 4 | 4 | -.5557351519098601 |
+
+The converged subset changes the representative selected by smallest gradient
+norm; minimum coordinates differ only at roughly 1e-12 or smaller and the
+second objective by roughly 4e-16. These are floating-point representative
+changes, not new stationary points. The lowest objective is unchanged.
+
+Limitations remain: strict Newton/Armijo does not converge from every start;
+a gradient-norm stop establishes numerical stationarity, not a minimum.
+The finite grid does not establish exhaustive stationary-point discovery or
+prove global optimality. No replacement algorithm or proof was added.
+
+## Historical scope/simplicity audit (before the strict-Newton correction)
+
 ## Pre-edit checklist — completed before any deletion or restructuring
 
 The original seven-page brief was read first; its rendered pp.2–4 equations

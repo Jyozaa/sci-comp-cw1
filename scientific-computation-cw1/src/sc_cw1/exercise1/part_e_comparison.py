@@ -7,7 +7,7 @@ from sc_cw1.common.utilities import output_dirs, plt, save_figure, save_history,
 
 def compare():
     """Both use x0=(-2,1), alpha=1; BFGS uses B0=.01 I."""
-    return {"Newton": newton((-2, 1), line_search=False, fallback=False),
+    return {"Newton": newton((-2, 1), line_search=False),
             "BFGS": bfgs((-2, 1), omega=.01, line_search=False)}
 
 

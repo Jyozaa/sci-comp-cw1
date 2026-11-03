@@ -8,12 +8,12 @@ not hardcoded answers. Required settings and conventions are in README.md.
 
 The analytical formulas are in `exercise1/model.py`; Newton solves H*d=-grad
 and uses objective Armijo in 1(b/c). The 21×21 grid spans [-2,2]².
-Run statuses: {'converged': 441}. Found 2 distinct local minima.
+Run statuses: {'line_search_failure': 293, 'converged': 148}. Found 2 distinct local minima.
 
 | point_id | x1 | x2 | value | classification | runs_in_cluster |
 | --- | --- | --- | --- | --- | --- |
-| 1 | -1.18530257 | 1.18530257 | -1.49914483 | minimum | 205 |
-| 2 | -0.659465157 | 0.659465157 | -0.559928824 | minimum | 232 |
+| 1 | -1.18530257 | 1.18530257 | -1.49914483 | minimum | 63 |
+| 2 | -0.659465157 | 0.659465157 | -0.559928824 | minimum | 81 |
 | 3 | -0.742325362 | 0.742325365 | -0.555735152 | saddle | 4 |
 
 The lowest minimum found is the **numerical global-minimum candidate**.
@@ -23,14 +23,21 @@ every stationary point was found. The saddle is not counted as a minimum.
 The initial-guess square is not a constraint on the original objective's domain.
 No formal global-optimality claim is made; see REVIEW_REQUIRED.md.
 
-The optional -gradient fallback is enabled for these multistart runs and counted
-separately in `ex1_part_c_multistart.csv`. Such steps are not ordinary Newton
-steps. The function definitions and relevant line search are mapped in CODE_MAP.md.
+Every accepted step in 1(b/c) uses the Newton direction and objective Armijo;
+there is no gradient-descent substitution. A non-descent direction fails with
+`line_search_failure`; an unusable Hessian/solve fails with `numerical_failure`.
+All starting points are attempted independently. Failed runs remain in
+`ex1_part_c_multistart.csv` as `not_classified` and are excluded from clustering
+and minimum counts. In this grid, all 293
+line-search failures occur at non-descent Newton directions, as checked during
+validation. A saddle may pass gradient tolerance before any descent test;
+convergence therefore means stationarity, not necessarily a minimum.
+The functions and line search are mapped in CODE_MAP.md.
 
 ## 1(d/e): fixed-step Newton versus inverse BFGS
 
 Both required runs start at (-2,1), with alpha=1 and BFGS B0=.01 I.
-Neither uses line search or Newton fallback in this comparison. The additional
+Neither uses line search in this comparison. The additional
 Exercise 1 stopping choices are gradient norm <1e-6 and maxit=200.
 
 | method | status | iterations | x1 | x2 | gradient_norm |

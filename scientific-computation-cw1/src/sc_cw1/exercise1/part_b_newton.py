@@ -20,12 +20,12 @@ def armijo(fun, x, value, g, delta, c1=1e-4, max_backtracks=50):
     return None  # Do not accept a step after a failed search.
 
 
-def newton(x0, tol=1e-6, maxit=200, line_search=True, fallback=False,
+def newton(x0, tol=1e-6, maxit=200, line_search=True,
            fun=objective, grad=gradient, hess=hessian):
     """Solve H*delta=-grad; stop at ||grad||₂<tol or after maxit updates.
 
-    fallback=True explicitly permits -grad if Newton cannot give a usable
-    descent direction. Fixed comparison runs use line_search=False, fallback=False.
+    An unusable Newton direction fails the run; no other direction is used.
+    Fixed comparison runs use line_search=False and exactly unit steps.
     """
     if tol <= 0 or maxit < 0:
         raise ValueError("tol must be positive and maxit nonnegative")
@@ -44,22 +44,17 @@ def newton(x0, tol=1e-6, maxit=200, line_search=True, fallback=False,
             if not np.all(np.isfinite(H)):
                 status = "numerical_failure"
                 break
-            kind = "newton"
             try:
                 if np.linalg.cond(H) > 1e12:
                     raise np.linalg.LinAlgError("singular or poorly conditioned Hessian")
                 # Compute the Newton direction by solving H*delta=-grad.
                 delta = np.linalg.solve(H, -g)
             except np.linalg.LinAlgError:
-                if not fallback:
-                    status = "numerical_failure"
-                    break
-                delta, kind = -g, "fallback_singular"
+                status = "numerical_failure"
+                break
             if line_search and g @ delta >= 0:
-                if not fallback:
-                    status = "line_search_failure"
-                    break
-                delta, kind = -g, "fallback_non_descent"
+                status = "line_search_failure"
+                break
             alpha = armijo(fun, x, value, g, delta) if line_search else 1.0
             if alpha is None:
                 status = "line_search_failure"
@@ -76,7 +71,7 @@ def newton(x0, tol=1e-6, maxit=200, line_search=True, fallback=False,
             values.append(value)
             norms.append(nn)
             alphas.append(alpha)
-            kinds.append(kind)
+            kinds.append("newton")
             directions.append(delta.copy())
     if status != "numerical_failure" and norms[-1] < tol:
         status = "converged"
@@ -88,7 +83,7 @@ def newton(x0, tol=1e-6, maxit=200, line_search=True, fallback=False,
 
 def run(output="results"):
     """Demonstrate 1(b); the full different-start experiment is 1(c)."""
-    result = newton((-2., 1.), fallback=True)
+    result = newton((-2., 1.))
     print(result["status"], result["iterations"], result["x"])
     return result
 
