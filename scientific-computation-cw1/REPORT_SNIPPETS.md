@@ -1,69 +1,46 @@
-# Report code excerpts
+# Report source excerpts
 
-These are literal excerpts of the executed functions, rather than standalone
-replacement algorithms. NumPy is imported as `np`. Include only the excerpts
-needed for the three requested listings within the report's 15-page limit.
-`CODE_MAP.md` identifies the complete functions and associated figures.
+These excerpts are copied directly from the executed source; they are not a
+second implementation. The source paths and function names below identify
+where to extract each listing. Select and format the relevant blocks within
+the report's 15-page budget. Separate model and algorithm blocks can be used
+as consecutive listings. No LaTeX report is generated here.
 
-## Exercise 1(b): Newton and Armijo
+## Exercise 1(b): model, strict Newton and Armijo
 
-Source: `src/sc_cw1/exercise1/part_b_newton.py`, `newton`.
-Setup copies `x0`, evaluates `value=fun(x)` and the analytical `g=grad(x)`,
-and records their values and norms in ordinary lists. `grad_norm` is the
-current gradient norm; `gradient_norms` stores its history. The iteration allows
-at most `maxit` updates:
-
-```python
-for _ in range(maxit):
-    if status == "numerical_failure" or grad_norm < tol:
-        break
-```
-
-The following contiguous block performs the strict Newton solve, step selection
-and trial evaluation. An unusable or non-descent Newton direction fails the run;
-no other direction is substituted. This is the same loop used in 1(c).
+Source: `src/sc_cw1/exercise1/model.py`, NumPy import and the complete
+`objective`, `gradient`, `hessian` functions. Local `u,v` mean `x1,x2`.
+These definitions supply the analytical derivatives used by the iteration.
 
 ```python
-H = hess(x)
-if not np.all(np.isfinite(H)):
-    status = "numerical_failure"
-    break
-try:
-    if np.linalg.cond(H) > 1e12:
-        raise np.linalg.LinAlgError("singular or poorly conditioned Hessian")
-    # Compute the Newton direction by solving H*delta=-grad.
-    delta = np.linalg.solve(H, -g)
-except np.linalg.LinAlgError:
-    status = "numerical_failure"
-    break
-if line_search and g @ delta >= 0:
-    status = "line_search_failure"
-    break
-alpha = armijo(fun, x, value, g, delta) if line_search else 1.0
-if alpha is None:
-    status = "line_search_failure"
-    break
-x_new = x+alpha*delta
-J_new, g_new = fun(x_new), grad(x_new)
-grad_norm_new = np.linalg.norm(g_new)
-if (not np.isfinite(J_new) or not np.isfinite(grad_norm_new)
-        or not np.all(np.isfinite(x_new)) or np.array_equal(x_new, x)):
-    status = "numerical_failure"
-    break
-x, value, g = x_new, J_new, g_new
-grad_norm = grad_norm_new
+import numpy as np
+
+
+def objective(x):
+    """J=exp((u²+v²)/2)+sin²(2uv)+2(u-1/2)(v+1/2)."""
+    u, v = np.asarray(x, dtype=float)
+    return float(np.exp((u*u + v*v) / 2) + np.sin(2*u*v)**2 + 2*(u-.5)*(v+.5))
+
+
+def gradient(x):
+    """The first-order conditions set both components of this gradient to zero."""
+    u, v = np.asarray(x, dtype=float)
+    E, S = np.exp((u*u + v*v)/2), np.sin(4*u*v)
+    # d(sin²(t))/dt=sin(2t), with t=2uv.
+    return np.array([u*E + 2*v*S + 2*v + 1, v*E + 2*u*S + 2*u - 1])
+
+
+def hessian(x):
+    """Second derivatives of J; H12=H21 by symmetry."""
+    u, v = np.asarray(x, dtype=float)
+    E, C = np.exp((u*u + v*v)/2), np.cos(4*u*v)
+    off = u*v*E + 2*np.sin(4*u*v) + 8*u*v*C + 2
+    return np.array([[(1+u*u)*E+8*v*v*C, off], [off, (1+v*v)*E+8*u*u*C]])
 ```
 
-The omitted continuation appends the accepted point, objective,
-`grad_norm_new`, alpha, direction and step kind `"newton"` to the history lists.
-After the loop it checks the final norm again, so convergence on the last
-permitted update is recognised.
-A singular/poorly conditioned Hessian, exhausted line search, nonfinite trial
-or unchanged floating-point iterate is reported as a failure rather than
-convergence. The condition threshold is the stated convention `1e12`.
-
-Source: the same file, `armijo` (entire function). Step-halving tests the
-objective sufficient-decrease inequality; non-descent directions are rejected.
+Source: `src/sc_cw1/exercise1/part_b_newton.py`, complete `armijo`.
+It tests sufficient decrease of the objective, starting at alpha=1 and halving
+rejected steps. The constants and backtracking limit are retained conventions.
 
 ```python
 def armijo(fun, x, value, g, delta, c1=1e-4, max_backtracks=50):
@@ -81,65 +58,93 @@ def armijo(fun, x, value, g, delta, c1=1e-4, max_backtracks=50):
     return None  # Do not accept a step after a failed search.
 ```
 
-The brief requests Armijo; `c1=1e-4`, halving and 50 backtracks are implementation
-conventions. In 1(e), `line_search=False` uses exactly alpha=1.
-
-## Exercise 1(d): inverse-Hessian BFGS
-
-Source: `src/sc_cw1/exercise1/part_d_bfgs.py`, `bfgs`.
-After copying `x0`, initialise the inverse approximation as prescribed:
+Source: the same file, complete `newton`. Its imported model names refer to
+the functions above. The explicit counter records accepted updates; failures
+leave the last accepted point. There is no replacement direction. Setting
+`line_search=False` preserves the fixed unit step required in 1(e).
 
 ```python
-B = omega*np.eye(2)
+def newton(x0, tol=1e-6, maxit=200, line_search=True,
+           fun=objective, grad=gradient, hess=hessian):
+    """Solve H*delta=-grad; stop at ||grad||₂<tol or after maxit updates.
+
+    An unusable Newton direction fails the run; no other direction is used.
+    Fixed comparison runs use line_search=False and exactly unit steps.
+    """
+    if tol <= 0 or maxit < 0:
+        raise ValueError("tol must be positive and maxit nonnegative")
+    k = 0
+    x = np.array(x0, dtype=float)
+    iterates = [x.copy()]
+    alphas = [0.0]
+    step_types = ["initial"]
+    directions = [np.zeros(2)]
+    status = "max_iterations"
+    with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+        value, g = fun(x), grad(x)
+        grad_norm = np.linalg.norm(g)
+        values, gradient_norms = [value], [grad_norm]
+        if not np.all(np.isfinite(x)) or not np.isfinite(value) or not np.isfinite(grad_norm):
+            status = "numerical_failure"
+        while grad_norm >= tol and k < maxit and status != "numerical_failure":
+            # Evaluate the Hessian.
+            H = hess(x)
+            if not np.all(np.isfinite(H)):
+                status = "numerical_failure"
+                break
+            try:
+                if np.linalg.cond(H) > 1e12:
+                    raise np.linalg.LinAlgError("singular or poorly conditioned Hessian")
+                # Calculate the Newton direction.
+                delta = np.linalg.solve(H, -g)
+            except np.linalg.LinAlgError:
+                status = "numerical_failure"
+                break
+            if line_search and g @ delta >= 0:
+                status = "line_search_failure"
+                break
+            # Choose an Armijo step, or the prescribed unit step in 1(e).
+            alpha = armijo(fun, x, value, g, delta) if line_search else 1.0
+            if alpha is None:
+                status = "line_search_failure"
+                break
+            # Evaluate the new point before accepting the update.
+            x_new = x+alpha*delta
+            J_new, g_new = fun(x_new), grad(x_new)
+            grad_norm_new = np.linalg.norm(g_new)
+            if (not np.isfinite(J_new) or not np.isfinite(grad_norm_new)
+                    or not np.all(np.isfinite(x_new)) or np.array_equal(x_new, x)):
+                status = "numerical_failure"
+                break
+            x, value, g = x_new, J_new, g_new
+            grad_norm = grad_norm_new
+            iterates.append(x.copy())
+            values.append(value)
+            gradient_norms.append(grad_norm_new)
+            alphas.append(alpha)
+            step_types.append("newton")
+            directions.append(delta.copy())
+            k += 1
+    if status != "numerical_failure" and grad_norm < tol:
+        status = "converged"
+    return dict(x=iterates[-1], iterates=np.array(iterates), values=np.array(values),
+                gradient_norms=np.array(gradient_norms), alphas=np.array(alphas),
+                step_kinds=step_types, directions=np.array(directions),
+                iterations=k, status=status)
 ```
 
-Setup evaluates the objective and gradient and records the initial norm.
-This contiguous iteration excerpt shows the stop test, direction, step,
-gradient difference and acceptance checks:
+The final check recognises convergence on the last permitted update.
+The condition-number limit and finite/stagnation checks prevent unusable
+results from being reported as convergence. Complete functions are shown here;
+only imports already supplied above and the command-line demonstration are
+omitted. `step_kinds` is the existing result key; `step_types` is its local list.
 
-```python
-for _ in range(maxit):
-    if status == "numerical_failure" or grad_norm < tol:
-        break
-    delta = -B @ g
-    alpha = armijo(fun, x, value, g, delta) if line_search else 1.0
-    if alpha is None:
-        status = "line_search_failure"
-        break
-    s = alpha*delta
-    x_new = x+s
-    J_new, g_new = fun(x_new), grad(x_new)
-    grad_norm_new = np.linalg.norm(g_new)
-    if (not np.isfinite(J_new) or not np.isfinite(grad_norm_new)
-            or not np.all(np.isfinite(x_new)) or np.array_equal(x_new, x)):
-        status = "numerical_failure"
-        break
-    y = g_new-g
-    x, value, g = x_new, J_new, g_new
-    grad_norm = grad_norm_new
-```
+## Exercise 1(d): inverse BFGS
 
-The omitted five lines append the accepted point, objective, norm, alpha and
-direction to ordinary history lists. The continuation below avoids a needless
-inverse update once the newly evaluated gradient meets tolerance:
-
-```python
-if grad_norm_new < tol:
-    break  # No further direction needs B after convergence.
-try:
-    B = inverse_bfgs_update(B, s, y)
-except ValueError:
-    status = "numerical_failure"
-    break
-```
-
-The full function checks the final norm after the loop and returns the
-histories and status. No Hessian is evaluated and no linear system is solved.
-`line_search=False` bypasses Armijo in 1(e); omega=.01 there.
-
-Source: the same file, `inverse_bfgs_update` (entire function).
-The expanded inverse formula is unchanged from the brief. An unsafe denominator
-causes explicit failure: there is no skipped update, damping or matrix reset.
+Source: `src/sc_cw1/exercise1/part_d_bfgs.py`, complete
+`inverse_bfgs_update` and `bfgs`. They use NumPy and the model/Armijo functions
+above. The expanded inverse formula is unchanged. Invalid curvature fails
+explicitly; no damping, skipped update or matrix reset is used.
 
 ```python
 def inverse_bfgs_update(B, s, y):
@@ -155,30 +160,121 @@ def inverse_bfgs_update(B, s, y):
     return B_new
 ```
 
-## Exercise 2(e): exact changes to ordinary descent
+```python
+def bfgs(x0, omega=1.0, tol=1e-6, maxit=200, line_search=True,
+         fun=objective, grad=gradient):
+    """Use delta=-B*grad and stop at ||grad||₂<tol; invalid updates fail explicitly."""
+    if omega <= 0 or tol <= 0 or maxit < 0:
+        raise ValueError("omega/tol must be positive and maxit nonnegative")
+    k = 0
+    x = np.array(x0, dtype=float)
+    B = omega*np.eye(2)
+    iterates = [x.copy()]
+    alphas = [0.0]
+    directions = [np.zeros(2)]
+    status = "max_iterations"
+    with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+        value, g = fun(x), grad(x)
+        grad_norm = np.linalg.norm(g)
+        values, gradient_norms = [value], [grad_norm]
+        if not np.all(np.isfinite(x)) or not np.isfinite(value) or not np.isfinite(grad_norm):
+            status = "numerical_failure"
+        while grad_norm >= tol and k < maxit and status != "numerical_failure":
+            # Calculate the direction using the inverse-Hessian approximation.
+            delta = -B @ g
+            alpha = armijo(fun, x, value, g, delta) if line_search else 1.0
+            if alpha is None:
+                status = "line_search_failure"
+                break
+            # Evaluate the trial step and its new gradient.
+            s = alpha*delta
+            x_new = x+s
+            J_new, g_new = fun(x_new), grad(x_new)
+            grad_norm_new = np.linalg.norm(g_new)
+            if (not np.isfinite(J_new) or not np.isfinite(grad_norm_new)
+                    or not np.all(np.isfinite(x_new)) or np.array_equal(x_new, x)):
+                status = "numerical_failure"
+                break
+            # The gradient difference supplies the curvature information.
+            y = g_new-g
+            x, value, g = x_new, J_new, g_new
+            grad_norm = grad_norm_new
+            iterates.append(x.copy())
+            values.append(value)
+            gradient_norms.append(grad_norm_new)
+            alphas.append(alpha)
+            directions.append(delta.copy())
+            k += 1
+            if grad_norm_new < tol:
+                break  # No further direction needs B after convergence.
+            try:
+                # Apply the prescribed inverse-BFGS update.
+                B = inverse_bfgs_update(B, s, y)
+            except ValueError:
+                status = "numerical_failure"
+                break
+    if status != "numerical_failure" and grad_norm < tol:
+        status = "converged"
+    return dict(x=iterates[-1], iterates=np.array(iterates), values=np.array(values),
+                gradient_norms=np.array(gradient_norms), alphas=np.array(alphas),
+                directions=np.array(directions), step_kinds=["initial"]+["bfgs"]*(len(iterates)-1),
+                iterations=k, status=status)
+```
 
-Sources: `src/sc_cw1/exercise2/part_d_gradient_descent.py`, `gradient_descent`;
-`src/sc_cw1/exercise2/part_e_momentum.py`, `momentum_descent`.
+The listing includes B0=omega I, delta=-B g, s=alpha delta, y=g_new-g,
+the update, stopping and counter. An accepted step is counted even if the
+subsequent matrix update fails. After convergence no further matrix is needed.
+In 1(e), x0=(-2,1), omega=.01 and `line_search=False`; alpha is exactly one.
+No Hessian evaluation or linear solve occurs in BFGS.
 
-The ordinary method uses `gamma=0`: its direction is `d=g=2*jac(x).T @ F(x)`
-and its update is `x_new=x-step_size*d`. The three marked changes implement
-momentum in that same loop. First initialise fresh memory in every run:
+## Exercise 2(e): residual gradient and momentum changes
+
+Source: `src/sc_cw1/exercise2/model.py`, complete `F` and `jacobian`.
+NumPy is imported as above. These analytical functions are passed as the
+`residual` and `jac` arguments of the shared iteration.
 
 ```python
+def F(x):
+    """F1=(u-1)²+v²-1; F2=cos(2u)-v."""
+    u, v = np.asarray(x, dtype=float)
+    return np.array([(u-1)**2 + v**2 - 1, np.cos(2*u) - v])
+
+
+def jacobian(x):
+    """J_ij=∂F_i/∂x_j."""
+    u, v = np.asarray(x, dtype=float)
+    return np.array([[2*(u-1), 2*v], [-2*np.sin(2*u), -1.]])
+```
+
+Source: `src/sc_cw1/exercise2/part_d_gradient_descent.py`,
+`gradient_descent`. Ordinary descent is the gamma=0 case of this actual loop.
+The first momentum modification initialises fresh direction memory:
+
+```python
+k = 0
+x = np.array(x0, dtype=float)
 d_prev = np.zeros(2)  # Momentum change 1: start with zero previous direction.
 ```
 
-Setup computes `residual_value=residual(x)` and
-`g=2*jac(x).T @ residual_value` using the analytical Jacobian. The iteration
-tests the residual norm, not the gradient norm:
+After creating the history lists, the initial analytical residual gradient is
+computed as follows (literal consecutive lines):
 
 ```python
-for _ in range(maxit):
-    if status == "numerical_failure" or residual_norms[-1] < tol:
-        break
+residual_value = residual(x)
+g = 2*jac(x).T @ residual_value
+```
+
+The omitted setup records phi=F.T F, `residual_norm=||F||₂` and the gradient
+norm, and marks a nonfinite initial evaluation as failure. The following
+complete loop is inside the function's existing `np.errstate` context. It
+includes both remaining momentum modifications and all iteration recording:
+
+```python
+while residual_norm >= tol and k < maxit and status != "numerical_failure":
     # Momentum change 2: gamma=0 gives ordinary gradient descent.
     d = gamma*d_prev + g
     x_new = x-step_size*d
+    # Evaluate F and its analytical residual gradient at the new point.
     residual_new = residual(x_new)
     g_new = 2*jac(x_new).T @ residual_new
     residual_norm_new = np.linalg.norm(residual_new)
@@ -189,22 +285,31 @@ for _ in range(maxit):
         status = "numerical_failure"
         break
     x, residual_value, g = x_new, residual_new, g_new
+    residual_norm = residual_norm_new
+    iterates.append(x.copy())
+    values.append(value_new)
+    residual_norms.append(residual_norm_new)
+    gradient_norms.append(grad_norm_new)
+    d_prev = d.copy()  # Momentum change 3: retain the accepted direction.
+    directions.append(d.copy())
+    alphas.append(step_size)
+    k += 1
 ```
 
-After recording the accepted point, value, residual norm and gradient norm,
-update the momentum state before the next iteration:
+After leaving that context, the final stopping check is:
 
 ```python
-d_prev = d.copy()  # Momentum change 3: retain the accepted direction.
+if status != "numerical_failure" and residual_norm < tol:
+    status = "converged"
 ```
 
-The remaining lines record `d` and the fixed step. The full function checks
-`residual_norms[-1] < tol` again after the loop and returns a dictionary.
-The small `momentum_descent` wrapper requires `0<gamma<1` and calls this
-function with the requested gamma. There is no alternative recurrence or
-custom initial memory. The zero previous direction is an explicit convention.
+These are function-body excerpts, not standalone programs. The omitted return
+constructs the existing dictionary of arrays and `iterations=k`. The small
+`momentum_descent` wrapper in `exercise2/part_e_momentum.py` checks 0<gamma<1
+and calls this same loop; it creates no independent algorithm.
 
-The executed settings are `step_size=.05`, `x0=(0,-1)`, `tol=1e-6`,
-`maxit=200`. Each 2(f) run starts independently with gamma=.1, .3 or .7.
-`range(maxit)` permits exactly 200 updates, with the initial point at k=0;
-convergence can stop earlier. Only `||F||₂<tol` declares a root converged.
+The recurrence is exactly d=gamma*d_prev+2J.T F and x_new=x-step_size*d.
+With gamma=0 it is ordinary descent. The prescribed step is .05, start (0,-1),
+tol=1e-6 and maxit=200; each gamma=.1,.3,.7 comparison starts with fresh memory.
+Stopping is strictly ||F||₂<tol. The loop uses >= at equality and k<maxit,
+so the initial point and unsuccessful attempts do not consume update counts.

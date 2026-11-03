@@ -2,6 +2,9 @@
 
 Paths are relative to `src/sc_cw1/`. All algorithm functions return plain
 dictionaries of arrays. Basic CSV/plot helpers contain no numerical update.
+Newton, BFGS and the shared descent/momentum solver initialise `k=0`, use a
+norm-based `while` condition with `k<maxit`, and increment `k` only after an
+accepted update. Their public arguments and history schemas are unchanged.
 
 | Part | Functions/files and every mathematical dependency | Required output / report use |
 | --- | --- | --- |
@@ -34,3 +37,5 @@ hand-computable updates, Armijo, inverse-BFGS secant identity, failures, prescri
 settings, update budgets, clustering, and graphical-estimate precision.
 REPORT_SNIPPETS.md contains literal excerpts of the current functions; the
 separate report still needs the analytical derivations and numerical discussion.
+It also includes the original objective/gradient/Hessian and residual/Jacobian
+definitions from the two model files, so no parallel implementation is needed.

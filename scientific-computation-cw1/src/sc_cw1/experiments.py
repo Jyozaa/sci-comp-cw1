@@ -60,6 +60,16 @@ Run statuses: {states}. Found {len(minima)} distinct local minima.
 
 {table(points, ['point_id', 'x1', 'x2', 'value', 'classification', 'runs_in_cluster'])}
 
+Adding the existing analytical gradient components gives
+`g1+g2=(x1+x2)*(exp((x1²+x2²)/2)+2*sin(4*x1*x2)+2)`.
+The second factor is strictly positive: the exponential is positive and
+`2*sin(4*x1*x2)+2` is nonnegative. Thus every stationary point satisfies
+`x1+x2=0`, consistent with the computed points to stopping accuracy.
+On this line, writing `a=x1=-x2` gives
+`j(a)=exp(a²)+sin²(2a²)-2a²+2a-1/2`.
+This reduces the stationary-point equations to one variable. It does not
+establish an exhaustive root count or global optimality.
+
 The lowest minimum found is the **numerical global-minimum candidate**.
 The comparison of converged objective values supports this answer; finite
 multistart searches do not prove it is the true global minimum over R² or that

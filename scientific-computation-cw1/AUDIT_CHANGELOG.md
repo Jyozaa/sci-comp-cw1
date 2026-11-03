@@ -3,6 +3,75 @@
 Baseline: commit `89bcd30dad54507e926fff031e1c0735112f6e64`.
 Audit date: 3 November 2026. No automatic commit or push is authorised.
 
+## Notebook-style implementation refactor
+
+Baseline: `ebad2490d214f4ca24c71d2ed98c07a8fb510cd5`. Before editing,
+read executable solver cells in the supplied Unit 2, Unit 5, Unit 8, Unit 11
+and Worksheet 3 notebooks. Followed their explicit counter, norm-based `while`
+condition, direct NumPy updates, short step comments and list histories.
+Kept direct function calls; did not copy `eval`, residual-only line search or
+`k<=maxk` boundary patterns. Public arguments/result schemas are unchanged.
+
+| File/function | Before | Current implementation |
+| --- | --- | --- |
+| `exercise1/part_b_newton.py:newton` | `for _ in range(maxit)` with an internal convergence break; count derived from history length | `k=0`, `while grad_norm>=tol and k<maxit` plus the initial-failure guard; increment after accepting/recording a Newton update; return `iterations=k` |
+| `exercise1/part_d_bfgs.py:bfgs` | Same bounded-for structure | Same explicit-counter organisation as Newton. Count an accepted step before checking convergence/performing the next matrix update, preserving curvature-failure counts |
+| `exercise2/part_d_gradient_descent.py:gradient_descent` | Bounded-for loop; stopping through `residual_norms[-1]` | Explicit `k` and current scalar `residual_norm`, separate from its history; `while residual_norm>=tol and k<maxit`, with the same failure guard and zero initial momentum |
+| `exercise2/part_e_momentum.py:momentum_descent` | Already delegates to one shared loop | Preserved; it now executes the revised shared `while` loop without duplicating it |
+| `tests/test_numerical_methods.py`, `tests/test_exercise2.py` | Initial/final stops, failures and 200-update descent tests | Add eight Newton/BFGS cases for budgets 0/1/2, tolerance equality and convergence on the final permitted update; strengthen equality checks for ordinary/momentum descent. No prior expectation was relaxed |
+| `REPORT_SNIPPETS.md` | Algorithm excerpts without all analytical definitions | Exact NumPy/objective/gradient/Hessian and complete Newton/Armijo/BFGS functions; original F/Jacobian and actual shared momentum-loop excerpts. Setup omissions identified; no alternative implementation |
+| `CODE_MAP.md`, `README.md` | Earlier loop descriptions | Document accepted-update counters and model-definition listings |
+| `experiments.py`, generated `RESULTS.md` | Numerical minima/global-candidate discussion | Add only the elementary gradient-sum identity and reduced objective for later report discussion; no new computation, optimiser or proof infrastructure |
+
+Existing names `x_new`, `g_new`, `H`, `B`, `B_y`, `B_new`, `s`, `y` and
+`d_prev` were retained. New `k` replaces the implicit loop index/history-derived
+count; `residual_norms[-1]` becomes the explicit current `residual_norm` in the
+shared descent stopping test. Short comments mark Hessian evaluation,
+direction/step calculation and new gradient evaluation. The original model
+formulas, Newton solve, strict failure behaviour, Armijo constants/halving,
+expanded inverse BFGS and momentum recurrence remain unchanged. Traversal,
+clustering, array-processing, bounded-backtracking and plotting loops were
+reviewed and retained; plots were not cosmetically edited.
+
+Verification against a private pre-edit snapshot of the committed source:
+
+- All **447 required solver result dictionaries** and **six update-budget
+  cases** match exactly, including **2,722 arrays** of complete iterates,
+  directions, values, norms and steps; statuses, public signatures, key order,
+  shapes and dtypes also match. No numerical tolerance was needed.
+- `python -m pytest -q`: **40 passed** (32 retained cases plus eight added
+  counter/boundary cases). Existing checks cover Newton equations and Armijo,
+  analytical derivatives, BFGS, nonfinite/singular failures and momentum.
+  Exactly 200 updates with 201 stored points remain permitted in descent;
+  strict equality at tolerance does not declare initial convergence.
+- `python scripts/run_all.py`: successful. All **six PNGs and eleven CSVs**
+  were regenerated and are byte-identical to `ebad249`; filenames/appearance
+  remain unchanged. PNGs decode at 300 DPI. Only explanatory text changes
+  in RESULTS.md, through its generator.
+- Counts remain 148 converged/293 failed starts, clusters 63/81/4, Newton/BFGS
+  5/12 updates and descent/momentum 138/64/36/79. The lowest objective remains
+  -1.4991448256027757. No unexpected numerical discrepancy occurred.
+- The package was rebuilt/reinstalled and checked from a separate directory;
+  the installed functions use the new `while` loops. Final `git diff --check`
+  and document-link checks pass; HEAD is unchanged and nothing is staged.
+- All ten report code blocks are literal contiguous source excerpts and parse
+  as Python. The displayed model/Newton/BFGS definitions also execute together
+  successfully without hidden mathematical helper definitions.
+
+The gradient identity is obtained directly from the existing analytical
+components: g1+g2=(x1+x2)[exp((x1²+x2²)/2)+2sin(4x1x2)+2]. The bracket is
+strictly positive, so every stationary point lies on x1+x2=0. The largest
+absolute x1+x2 in the three numerical representatives is about 3.10e-9.
+Direct checks agree with J(a,-a)=exp(a²)+sin²(2a²)-2a²+2a-1/2. This
+necessary-condition reduction does not count all reduced stationary points
+or establish the true global minimum. No root-search algorithm was added.
+
+LaTeX work remains separate: replace the three algorithm listings and include
+the model definitions/NumPy import; explain accepted-update counts and strict
+Newton failures; add the stationary-line reasoning while retaining numerical
+limits on global optimality; revise references and check the 15-page layout.
+No LaTeX/Overleaf/PDF was edited or generated, and no commit/push is performed.
+
 ## Readability and naming refactor
 
 Baseline: `aa7586e088899a31f52f630c2b1d7729321918ff`. This is a source-only

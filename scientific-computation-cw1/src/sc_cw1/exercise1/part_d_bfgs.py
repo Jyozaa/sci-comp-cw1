@@ -24,6 +24,7 @@ def bfgs(x0, omega=1.0, tol=1e-6, maxit=200, line_search=True,
     """Use delta=-B*grad and stop at ||grad||₂<tol; invalid updates fail explicitly."""
     if omega <= 0 or tol <= 0 or maxit < 0:
         raise ValueError("omega/tol must be positive and maxit nonnegative")
+    k = 0
     x = np.array(x0, dtype=float)
     B = omega*np.eye(2)
     iterates = [x.copy()]
@@ -36,14 +37,14 @@ def bfgs(x0, omega=1.0, tol=1e-6, maxit=200, line_search=True,
         values, gradient_norms = [value], [grad_norm]
         if not np.all(np.isfinite(x)) or not np.isfinite(value) or not np.isfinite(grad_norm):
             status = "numerical_failure"
-        for _ in range(maxit):
-            if status == "numerical_failure" or grad_norm < tol:
-                break
+        while grad_norm >= tol and k < maxit and status != "numerical_failure":
+            # Calculate the direction using the inverse-Hessian approximation.
             delta = -B @ g
             alpha = armijo(fun, x, value, g, delta) if line_search else 1.0
             if alpha is None:
                 status = "line_search_failure"
                 break
+            # Evaluate the trial step and its new gradient.
             s = alpha*delta
             x_new = x+s
             J_new, g_new = fun(x_new), grad(x_new)
@@ -52,6 +53,7 @@ def bfgs(x0, omega=1.0, tol=1e-6, maxit=200, line_search=True,
                     or not np.all(np.isfinite(x_new)) or np.array_equal(x_new, x)):
                 status = "numerical_failure"
                 break
+            # The gradient difference supplies the curvature information.
             y = g_new-g
             x, value, g = x_new, J_new, g_new
             grad_norm = grad_norm_new
@@ -60,9 +62,11 @@ def bfgs(x0, omega=1.0, tol=1e-6, maxit=200, line_search=True,
             gradient_norms.append(grad_norm_new)
             alphas.append(alpha)
             directions.append(delta.copy())
+            k += 1
             if grad_norm_new < tol:
                 break  # No further direction needs B after convergence.
             try:
+                # Apply the prescribed inverse-BFGS update.
                 B = inverse_bfgs_update(B, s, y)
             except ValueError:
                 status = "numerical_failure"
@@ -72,7 +76,7 @@ def bfgs(x0, omega=1.0, tol=1e-6, maxit=200, line_search=True,
     return dict(x=iterates[-1], iterates=np.array(iterates), values=np.array(values),
                 gradient_norms=np.array(gradient_norms), alphas=np.array(alphas),
                 directions=np.array(directions), step_kinds=["initial"]+["bfgs"]*(len(iterates)-1),
-                iterations=len(iterates)-1, status=status)
+                iterations=k, status=status)
 
 
 def run(output="results"):

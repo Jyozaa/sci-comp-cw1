@@ -56,6 +56,8 @@ def test_residual_stopping_and_exact_update_budget(solver):
     kw = dict(residual=lambda x: x, jac=lambda x: np.eye(2))
     assert solver((0, 0), maxit=0, **kw)["status"] == "converged"
     assert solver((1, -2), step_size=.5, maxit=1, **kw)["status"] == "converged"
+    r = solver((1, 0), step_size=.5, tol=1., maxit=1, **kw)
+    assert r["status"] == "converged" and r["iterations"] == 1
     assert solver((np.nan, 0))["status"] == "numerical_failure"
 
 

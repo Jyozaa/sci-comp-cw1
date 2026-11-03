@@ -67,6 +67,8 @@ need their written derivations in the separately prepared report.
 - Histories include x0; iteration counts exclude it. At most 200 updates are
   permitted; convergence can occur earlier. Numerical failures and exhausted
   searches have explicit statuses and retain the last accepted point.
+  Each solver uses an explicit `k` counter in a `while` loop; only accepted
+  updates increment it. Momentum shares the gradient-descent loop.
 
 Solvers return ordinary dictionaries containing NumPy arrays (`iterates`,
 `values`, `gradient_norms`, `alphas`, `directions`) and `status`, `iterations`,

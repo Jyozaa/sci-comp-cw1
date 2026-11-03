@@ -29,6 +29,7 @@ def newton(x0, tol=1e-6, maxit=200, line_search=True,
     """
     if tol <= 0 or maxit < 0:
         raise ValueError("tol must be positive and maxit nonnegative")
+    k = 0
     x = np.array(x0, dtype=float)
     iterates = [x.copy()]
     alphas = [0.0]
@@ -41,9 +42,8 @@ def newton(x0, tol=1e-6, maxit=200, line_search=True,
         values, gradient_norms = [value], [grad_norm]
         if not np.all(np.isfinite(x)) or not np.isfinite(value) or not np.isfinite(grad_norm):
             status = "numerical_failure"
-        for _ in range(maxit):
-            if status == "numerical_failure" or grad_norm < tol:
-                break
+        while grad_norm >= tol and k < maxit and status != "numerical_failure":
+            # Evaluate the Hessian.
             H = hess(x)
             if not np.all(np.isfinite(H)):
                 status = "numerical_failure"
@@ -51,7 +51,7 @@ def newton(x0, tol=1e-6, maxit=200, line_search=True,
             try:
                 if np.linalg.cond(H) > 1e12:
                     raise np.linalg.LinAlgError("singular or poorly conditioned Hessian")
-                # Compute the Newton direction by solving H*delta=-grad.
+                # Calculate the Newton direction.
                 delta = np.linalg.solve(H, -g)
             except np.linalg.LinAlgError:
                 status = "numerical_failure"
@@ -59,10 +59,12 @@ def newton(x0, tol=1e-6, maxit=200, line_search=True,
             if line_search and g @ delta >= 0:
                 status = "line_search_failure"
                 break
+            # Choose an Armijo step, or the prescribed unit step in 1(e).
             alpha = armijo(fun, x, value, g, delta) if line_search else 1.0
             if alpha is None:
                 status = "line_search_failure"
                 break
+            # Evaluate the new point before accepting the update.
             x_new = x+alpha*delta
             J_new, g_new = fun(x_new), grad(x_new)
             grad_norm_new = np.linalg.norm(g_new)
@@ -78,12 +80,13 @@ def newton(x0, tol=1e-6, maxit=200, line_search=True,
             alphas.append(alpha)
             step_types.append("newton")
             directions.append(delta.copy())
+            k += 1
     if status != "numerical_failure" and grad_norm < tol:
         status = "converged"
     return dict(x=iterates[-1], iterates=np.array(iterates), values=np.array(values),
                 gradient_norms=np.array(gradient_norms), alphas=np.array(alphas),
                 step_kinds=step_types, directions=np.array(directions),
-                iterations=len(iterates)-1, status=status)
+                iterations=k, status=status)
 
 
 def run(output="results"):

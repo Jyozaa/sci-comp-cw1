@@ -79,6 +79,26 @@ def test_initial_convergence_budget_and_nonfinite_values(solver):
     assert r["status"] == "numerical_failure"
 
 
+@pytest.mark.parametrize("solver", [newton, bfgs])
+@pytest.mark.parametrize("maxit", [0, 1, 2])
+def test_counter_stops_at_the_allowed_number_of_accepted_updates(solver, maxit):
+    r = solver((-2, 1), maxit=maxit)
+    assert r["status"] == "max_iterations" and r["iterations"] == maxit
+    assert len(r["iterates"]) == maxit+1
+    assert len(r["directions"]) == len(r["alphas"]) == maxit+1
+
+
+@pytest.mark.parametrize("solver", [newton, bfgs])
+def test_tolerance_equality_and_convergence_on_last_allowed_update(solver):
+    kw = dict(fun=lambda x: .5*x @ x, grad=lambda x: x)
+    if solver is newton:
+        kw["hess"] = lambda x: np.eye(2)
+    # Equality does not pass the strict tolerance test; one update is needed.
+    r = solver((1, 0), tol=1., maxit=1, **kw)
+    assert r["status"] == "converged" and r["iterations"] == 1
+    assert_allclose(r["iterates"], [[1, 0], [0, 0]])
+
+
 def test_unsafe_bfgs_curvature_is_a_reported_failure():
     r = bfgs((1, 0), fun=lambda x: -.5*x @ x, grad=lambda x: -x, line_search=False)
     assert r["status"] == "numerical_failure" and r["iterations"] == 1
