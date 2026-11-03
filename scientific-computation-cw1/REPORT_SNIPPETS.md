@@ -9,12 +9,13 @@ needed for the three requested listings within the report's 15-page limit.
 
 Source: `src/sc_cw1/exercise1/part_b_newton.py`, `newton`.
 Setup copies `x0`, evaluates `value=fun(x)` and the analytical `g=grad(x)`,
-and records their values and norms in ordinary lists. `norms[-1]` is the
-current gradient norm. The iteration allows at most `maxit` updates:
+and records their values and norms in ordinary lists. `grad_norm` is the
+current gradient norm; `gradient_norms` stores its history. The iteration allows
+at most `maxit` updates:
 
 ```python
 for _ in range(maxit):
-    if status == "numerical_failure" or norms[-1] < tol:
+    if status == "numerical_failure" or grad_norm < tol:
         break
 ```
 
@@ -42,19 +43,21 @@ alpha = armijo(fun, x, value, g, delta) if line_search else 1.0
 if alpha is None:
     status = "line_search_failure"
     break
-xn = x+alpha*delta
-vn, gn = fun(xn), grad(xn)
-nn = np.linalg.norm(gn)
-if (not np.isfinite(vn) or not np.isfinite(nn)
-        or not np.all(np.isfinite(xn)) or np.array_equal(xn, x)):
+x_new = x+alpha*delta
+J_new, g_new = fun(x_new), grad(x_new)
+grad_norm_new = np.linalg.norm(g_new)
+if (not np.isfinite(J_new) or not np.isfinite(grad_norm_new)
+        or not np.all(np.isfinite(x_new)) or np.array_equal(x_new, x)):
     status = "numerical_failure"
     break
-x, value, g = xn, vn, gn
+x, value, g = x_new, J_new, g_new
+grad_norm = grad_norm_new
 ```
 
-The omitted continuation appends the accepted point, objective, new norm `nn`,
-alpha, direction and step kind `"newton"` to the history lists. After the loop
-it checks the final norm again, so convergence on the last permitted update is recognised.
+The omitted continuation appends the accepted point, objective,
+`grad_norm_new`, alpha, direction and step kind `"newton"` to the history lists.
+After the loop it checks the final norm again, so convergence on the last
+permitted update is recognised.
 A singular/poorly conditioned Hessian, exhausted line search, nonfinite trial
 or unchanged floating-point iterate is reported as a failure rather than
 convergence. The condition threshold is the stated convention `1e12`.
@@ -67,14 +70,14 @@ def armijo(fun, x, value, g, delta, c1=1e-4, max_backtracks=50):
     """Find alpha with J(x+alpha*delta)<=J(x)+c1*alpha*g.T*delta."""
     slope = g @ delta
     if not np.isfinite(slope) or slope >= 0:
-        return None
+        return None  # Armijo requires a descent direction.
     alpha = 1.0
     with np.errstate(over="ignore", invalid="ignore"):
         for _ in range(max_backtracks+1):
             candidate = fun(x+alpha*delta)
             if np.isfinite(candidate) and candidate <= value+c1*alpha*slope:
                 return alpha
-            alpha *= 0.5
+            alpha *= 0.5  # Reduce the step until sufficient decrease holds.
     return None  # Do not accept a step after a failed search.
 ```
 
@@ -96,7 +99,7 @@ gradient difference and acceptance checks:
 
 ```python
 for _ in range(maxit):
-    if status == "numerical_failure" or norms[-1] < tol:
+    if status == "numerical_failure" or grad_norm < tol:
         break
     delta = -B @ g
     alpha = armijo(fun, x, value, g, delta) if line_search else 1.0
@@ -104,15 +107,16 @@ for _ in range(maxit):
         status = "line_search_failure"
         break
     s = alpha*delta
-    xn = x+s
-    vn, gn = fun(xn), grad(xn)
-    nn = np.linalg.norm(gn)
-    if (not np.isfinite(vn) or not np.isfinite(nn)
-            or not np.all(np.isfinite(xn)) or np.array_equal(xn, x)):
+    x_new = x+s
+    J_new, g_new = fun(x_new), grad(x_new)
+    grad_norm_new = np.linalg.norm(g_new)
+    if (not np.isfinite(J_new) or not np.isfinite(grad_norm_new)
+            or not np.all(np.isfinite(x_new)) or np.array_equal(x_new, x)):
         status = "numerical_failure"
         break
-    y = gn-g
-    x, value, g = xn, vn, gn
+    y = g_new-g
+    x, value, g = x_new, J_new, g_new
+    grad_norm = grad_norm_new
 ```
 
 The omitted five lines append the accepted point, objective, norm, alpha and
@@ -120,7 +124,7 @@ direction to ordinary history lists. The continuation below avoids a needless
 inverse update once the newly evaluated gradient meets tolerance:
 
 ```python
-if nn < tol:
+if grad_norm_new < tol:
     break  # No further direction needs B after convergence.
 try:
     B = inverse_bfgs_update(B, s, y)
@@ -143,12 +147,12 @@ def inverse_bfgs_update(B, s, y):
     sy = s @ y
     if not np.isfinite(sy) or sy <= 0 or sy <= 1e-12*np.linalg.norm(s)*np.linalg.norm(y):
         raise ValueError("nonpositive or unsafe BFGS curvature")
-    By = B @ y
-    updated = B + ((sy + y @ By) / sy**2) * np.outer(s, s)
-    updated -= (np.outer(By, s) + np.outer(s, y @ B)) / sy
-    if not np.all(np.isfinite(updated)):
+    B_y = B @ y
+    B_new = B + ((sy + y @ B_y) / sy**2) * np.outer(s, s)
+    B_new -= (np.outer(B_y, s) + np.outer(s, y @ B)) / sy
+    if not np.all(np.isfinite(B_new)):
         raise ValueError("nonfinite inverse-Hessian update")
-    return updated
+    return B_new
 ```
 
 ## Exercise 2(e): exact changes to ordinary descent
@@ -157,37 +161,41 @@ Sources: `src/sc_cw1/exercise2/part_d_gradient_descent.py`, `gradient_descent`;
 `src/sc_cw1/exercise2/part_e_momentum.py`, `momentum_descent`.
 
 The ordinary method uses `gamma=0`: its direction is `d=g=2*jac(x).T @ F(x)`
-and its update is `xn=x-step_size*d`. The three marked changes implement
+and its update is `x_new=x-step_size*d`. The three marked changes implement
 momentum in that same loop. First initialise fresh memory in every run:
 
 ```python
-previous = np.zeros(2)  # Momentum change 1: choose the initial previous direction to be zero.
+d_prev = np.zeros(2)  # Momentum change 1: start with zero previous direction.
 ```
 
-Setup computes `f=residual(x)` and `g=2*jac(x).T @ f` using the analytical
-Jacobian. The iteration tests the residual norm, not the gradient norm:
+Setup computes `residual_value=residual(x)` and
+`g=2*jac(x).T @ residual_value` using the analytical Jacobian. The iteration
+tests the residual norm, not the gradient norm:
 
 ```python
 for _ in range(maxit):
     if status == "numerical_failure" or residual_norms[-1] < tol:
         break
-    # Momentum change 2: gamma=0 gives the ordinary direction d=g.
-    d = gamma*previous + g
-    xn = x-step_size*d
-    fn = residual(xn)
-    gn = 2*jac(xn).T @ fn
-    rn, nn, vn = np.linalg.norm(fn), np.linalg.norm(gn), fn @ fn
-    if not np.isfinite(rn) or not np.isfinite(nn) or not np.isfinite(vn):
+    # Momentum change 2: gamma=0 gives ordinary gradient descent.
+    d = gamma*d_prev + g
+    x_new = x-step_size*d
+    residual_new = residual(x_new)
+    g_new = 2*jac(x_new).T @ residual_new
+    residual_norm_new = np.linalg.norm(residual_new)
+    grad_norm_new = np.linalg.norm(g_new)
+    value_new = residual_new @ residual_new
+    if (not np.isfinite(residual_norm_new) or not np.isfinite(grad_norm_new)
+            or not np.isfinite(value_new)):
         status = "numerical_failure"
         break
-    x, f, g = xn, fn, gn
+    x, residual_value, g = x_new, residual_new, g_new
 ```
 
 After recording the accepted point, value, residual norm and gradient norm,
 update the momentum state before the next iteration:
 
 ```python
-previous = d.copy()  # Momentum change 3: remember d for the next update.
+d_prev = d.copy()  # Momentum change 3: retain the accepted direction.
 ```
 
 The remaining lines record `d` and the fixed step. The full function checks

@@ -11,12 +11,12 @@ def inverse_bfgs_update(B, s, y):
     sy = s @ y
     if not np.isfinite(sy) or sy <= 0 or sy <= 1e-12*np.linalg.norm(s)*np.linalg.norm(y):
         raise ValueError("nonpositive or unsafe BFGS curvature")
-    By = B @ y
-    updated = B + ((sy + y @ By) / sy**2) * np.outer(s, s)
-    updated -= (np.outer(By, s) + np.outer(s, y @ B)) / sy
-    if not np.all(np.isfinite(updated)):
+    B_y = B @ y
+    B_new = B + ((sy + y @ B_y) / sy**2) * np.outer(s, s)
+    B_new -= (np.outer(B_y, s) + np.outer(s, y @ B)) / sy
+    if not np.all(np.isfinite(B_new)):
         raise ValueError("nonfinite inverse-Hessian update")
-    return updated
+    return B_new
 
 
 def bfgs(x0, omega=1.0, tol=1e-6, maxit=200, line_search=True,
@@ -26,15 +26,18 @@ def bfgs(x0, omega=1.0, tol=1e-6, maxit=200, line_search=True,
         raise ValueError("omega/tol must be positive and maxit nonnegative")
     x = np.array(x0, dtype=float)
     B = omega*np.eye(2)
-    xs, alphas, directions = [x.copy()], [0.0], [np.zeros(2)]
+    iterates = [x.copy()]
+    alphas = [0.0]
+    directions = [np.zeros(2)]
     status = "max_iterations"
     with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
         value, g = fun(x), grad(x)
-        values, norms = [value], [np.linalg.norm(g)]
-        if not np.all(np.isfinite(x)) or not np.isfinite(value) or not np.isfinite(norms[-1]):
+        grad_norm = np.linalg.norm(g)
+        values, gradient_norms = [value], [grad_norm]
+        if not np.all(np.isfinite(x)) or not np.isfinite(value) or not np.isfinite(grad_norm):
             status = "numerical_failure"
         for _ in range(maxit):
-            if status == "numerical_failure" or norms[-1] < tol:
+            if status == "numerical_failure" or grad_norm < tol:
                 break
             delta = -B @ g
             alpha = armijo(fun, x, value, g, delta) if line_search else 1.0
@@ -42,33 +45,34 @@ def bfgs(x0, omega=1.0, tol=1e-6, maxit=200, line_search=True,
                 status = "line_search_failure"
                 break
             s = alpha*delta
-            xn = x+s
-            vn, gn = fun(xn), grad(xn)
-            nn = np.linalg.norm(gn)
-            if (not np.isfinite(vn) or not np.isfinite(nn)
-                    or not np.all(np.isfinite(xn)) or np.array_equal(xn, x)):
+            x_new = x+s
+            J_new, g_new = fun(x_new), grad(x_new)
+            grad_norm_new = np.linalg.norm(g_new)
+            if (not np.isfinite(J_new) or not np.isfinite(grad_norm_new)
+                    or not np.all(np.isfinite(x_new)) or np.array_equal(x_new, x)):
                 status = "numerical_failure"
                 break
-            y = gn-g
-            x, value, g = xn, vn, gn
-            xs.append(x.copy())
+            y = g_new-g
+            x, value, g = x_new, J_new, g_new
+            grad_norm = grad_norm_new
+            iterates.append(x.copy())
             values.append(value)
-            norms.append(nn)
+            gradient_norms.append(grad_norm_new)
             alphas.append(alpha)
             directions.append(delta.copy())
-            if nn < tol:
+            if grad_norm_new < tol:
                 break  # No further direction needs B after convergence.
             try:
                 B = inverse_bfgs_update(B, s, y)
             except ValueError:
                 status = "numerical_failure"
                 break
-    if status != "numerical_failure" and norms[-1] < tol:
+    if status != "numerical_failure" and grad_norm < tol:
         status = "converged"
-    return dict(x=xs[-1], iterates=np.array(xs), values=np.array(values),
-                gradient_norms=np.array(norms), alphas=np.array(alphas),
-                directions=np.array(directions), step_kinds=["initial"]+["bfgs"]*(len(xs)-1),
-                iterations=len(xs)-1, status=status)
+    return dict(x=iterates[-1], iterates=np.array(iterates), values=np.array(values),
+                gradient_norms=np.array(gradient_norms), alphas=np.array(alphas),
+                directions=np.array(directions), step_kinds=["initial"]+["bfgs"]*(len(iterates)-1),
+                iterations=len(iterates)-1, status=status)
 
 
 def run(output="results"):

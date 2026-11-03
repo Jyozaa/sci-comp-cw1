@@ -7,7 +7,7 @@ from sc_cw1.common.utilities import module_cli
 
 def momentum_descent(x0=(0., -1.), gamma=.3, step_size=.05, tol=1e-6, maxit=200,
                      residual=F, jac=jacobian):
-    """Use d_k=gamma*d_(k-1)+2J.T F with zero initial direction."""
+    """Use d=gamma*d_prev+2J.T F, with d_prev initially zero in the shared loop."""
     if not 0 < gamma < 1:
         raise ValueError("momentum gamma must be between 0 and 1")
     return gradient_descent(x0=x0, step_size=step_size, tol=tol, maxit=maxit,

@@ -11,42 +11,49 @@ def gradient_descent(x0=(0., -1.), step_size=.05, tol=1e-6, maxit=200, gamma=0.,
     if step_size <= 0 or tol <= 0 or maxit < 0 or not 0 <= gamma < 1:
         raise ValueError("invalid step size, tolerance, iteration limit or momentum")
     x = np.array(x0, dtype=float)
-    previous = np.zeros(2)  # Momentum change 1: choose the initial previous direction to be zero.
-    xs, directions, alphas = [x.copy()], [previous.copy()], [0.0]
+    d_prev = np.zeros(2)  # Momentum change 1: start with zero previous direction.
+    iterates = [x.copy()]
+    directions = [d_prev.copy()]
+    alphas = [0.0]
     status = "max_iterations"
     with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
-        f = residual(x)
-        g = 2*jac(x).T @ f
-        values, residual_norms, gradient_norms = [f @ f], [np.linalg.norm(f)], [np.linalg.norm(g)]
+        residual_value = residual(x)
+        g = 2*jac(x).T @ residual_value
+        values = [residual_value @ residual_value]
+        residual_norms = [np.linalg.norm(residual_value)]
+        gradient_norms = [np.linalg.norm(g)]
         if not np.isfinite(values[-1]) or not np.isfinite(gradient_norms[-1]):
             status = "numerical_failure"
         for _ in range(maxit):
             if status == "numerical_failure" or residual_norms[-1] < tol:
                 break
-            # Momentum change 2: gamma=0 gives the ordinary direction d=g.
-            d = gamma*previous + g
-            xn = x-step_size*d
-            fn = residual(xn)
-            gn = 2*jac(xn).T @ fn
-            rn, nn, vn = np.linalg.norm(fn), np.linalg.norm(gn), fn @ fn
-            if not np.isfinite(rn) or not np.isfinite(nn) or not np.isfinite(vn):
+            # Momentum change 2: gamma=0 gives ordinary gradient descent.
+            d = gamma*d_prev + g
+            x_new = x-step_size*d
+            residual_new = residual(x_new)
+            g_new = 2*jac(x_new).T @ residual_new
+            residual_norm_new = np.linalg.norm(residual_new)
+            grad_norm_new = np.linalg.norm(g_new)
+            value_new = residual_new @ residual_new
+            if (not np.isfinite(residual_norm_new) or not np.isfinite(grad_norm_new)
+                    or not np.isfinite(value_new)):
                 status = "numerical_failure"
                 break
-            x, f, g = xn, fn, gn
-            xs.append(x.copy())
-            values.append(vn)
-            residual_norms.append(rn)
-            gradient_norms.append(nn)
-            previous = d.copy()  # Momentum change 3: remember d for the next update.
+            x, residual_value, g = x_new, residual_new, g_new
+            iterates.append(x.copy())
+            values.append(value_new)
+            residual_norms.append(residual_norm_new)
+            gradient_norms.append(grad_norm_new)
+            d_prev = d.copy()  # Momentum change 3: retain the accepted direction.
             directions.append(d.copy())
             alphas.append(step_size)
     if status != "numerical_failure" and residual_norms[-1] < tol:
         status = "converged"
-    return dict(x=xs[-1], iterates=np.array(xs), values=np.array(values),
+    return dict(x=iterates[-1], iterates=np.array(iterates), values=np.array(values),
                 residual_norms=np.array(residual_norms), gradient_norms=np.array(gradient_norms),
                 directions=np.array(directions), alphas=np.array(alphas),
-                step_kinds=["initial"]+["momentum" if gamma else "gradient_descent"]*(len(xs)-1),
-                iterations=len(xs)-1, status=status)
+                step_kinds=["initial"]+["momentum" if gamma else "gradient_descent"]*(len(iterates)-1),
+                iterations=len(iterates)-1, status=status)
 
 
 def residual_background(ax, xlim=(-.1, 1.6), ylim=(-1.15, .15)):

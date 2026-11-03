@@ -3,6 +3,63 @@
 Baseline: commit `89bcd30dad54507e926fff031e1c0735112f6e64`.
 Audit date: 3 November 2026. No automatic commit or push is authorised.
 
+## Readability and naming refactor
+
+Baseline: `aa7586e088899a31f52f630c2b1d7729321918ff`. This is a source-only
+readability change; strict Newton, all mathematical updates/settings and public
+signatures/return schemas are preserved. Reviewed Unit 2, Unit 5, Unit 8 and
+Unit 11 notebooks plus Worksheet 3 examples in the supplied ZIP before editing:
+short functions, direct NumPy operations, ordinary loops and list histories.
+No notebook `eval` calls or extra-update boundary conditions were copied.
+
+| Function/file | Before | After |
+| --- | --- | --- |
+| `exercise1/part_b_newton.py:newton` | `xs`, `kinds`, `norms`, `xn`, `gn`, `vn`, `nn` | `iterates`, `step_types`, `gradient_norms`, `x_new`, `g_new`, `J_new`, `grad_norm_new`; current stopping scalar explicitly named `grad_norm` |
+| Same file, `armijo` | Unexplained descent rejection and halving | Short comments explain the descent condition and sufficient-decrease search; calculations unchanged |
+| `exercise1/part_d_bfgs.py:bfgs,inverse_bfgs_update` | Abbreviated trial/history names; `By`, `updated` | Same trial/history naming as Newton; `B_y`, `B_new` expose the expanded inverse update |
+| `exercise2/part_d_gradient_descent.py:gradient_descent` | `previous`, `xs`, `f`, `fn`, `gn`, `rn`, `nn`, `vn` | `d_prev`, `iterates`, `residual_value`, `residual_new`, `g_new`, `residual_norm_new`, `grad_norm_new`, `value_new` |
+| `exercise2/part_e_momentum.py:momentum_descent` | Previous direction described by index notation | Short docstring uses `d_prev` consistently; wrapper already simple, so its calls/signature are unchanged |
+
+Initial history lists and trial norm/value evaluations are now on separate
+lines where grouping obscured their roles. Newton/BFGS explicitly initialise
+and update `grad_norm` before the next convergence test; accepted state is
+promoted and then recorded as before. The shared descent loop keeps 2J.T F,
+the fixed step and the three marked momentum changes visible. Momentum comments
+were shortened. No new helper, class, alternative algorithm or numerical study
+was introduced. Related source modules and plot code did not need changes.
+
+REPORT_SNIPPETS was re-extracted directly from these functions; all ten Python
+blocks were checked as literal contiguous source excerpts, with omitted setup
+and history recording identified. CODE_MAP/README now use `d_prev` where they
+refer to source. Existing tests were kept unchanged because public signatures,
+result keys and numerical behaviour did not change; no expectation was relaxed.
+
+Actual verification:
+
+- `python -m pytest -q`: **32 passed in 0.42s**, covering analytical
+  derivatives, Newton equations/Armijo acceptance, BFGS, momentum, stopping and
+  update budgets.
+- Saved complete results before editing the committed baseline, then compared
+  all **447** solver result dictionaries (441 starts plus six comparison runs),
+  including **2,686 arrays** of iterates, directions, values, norms and steps.
+  Floating-point comparisons used rtol=atol=1e-14; every array also matched
+  **exactly**. Statuses, dictionary keys, shapes/dtypes and public signatures
+  are unchanged. This verification used private temporary data, not new
+  repository infrastructure or experiments.
+- `python scripts/run_all.py`: succeeded, regenerating all six required PNGs
+  and eleven CSVs. All seventeen files and generated RESULTS.md are
+  **byte-for-byte identical** to the committed baseline; figure appearance and
+  filenames were preserved. All PNGs decode successfully at 300 DPI.
+- Counts remain 148 converged/293 non-descent failures from 441 starts, two
+  minima and one saddle; Newton/BFGS 5/12 updates; ordinary descent 138;
+  momentum .1/.3/.7 uses 64/36/79 updates. No unexpected discrepancy occurred.
+
+The package was rebuilt/reinstalled; independent inspection confirms the installed
+source uses the new names. Final snippet/link and `git diff --check` checks pass.
+No LaTeX/Overleaf/PDF report was edited or generated. No commit or push is
+performed for this refactor. Existing numerical-global-minimum limitations and
+strict-Newton failures are unchanged; see REVIEW_REQUIRED.
+
 ## Final strict-Newton correction — 3 November 2026
 
 Correction baseline: commit `c5da10e2d11670765000fb5fba0aaf10aff04434`.

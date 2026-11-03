@@ -63,7 +63,7 @@ need their written derivations in the separately prepared report.
   never repaired by editing the printed inverse update or resetting B.
 - **2(d/f):** prescribed x0=(0,-1), step=.05, tol=1e-6, maxit=200; 2(f) uses
   gamma=.1,.3,.7. Following Unit 10, stopping uses ||F||₂, not its square or the
-  residual gradient. The previous momentum direction starts at zero.
+  residual gradient. The stored momentum direction `d_prev` starts at zero.
 - Histories include x0; iteration counts exclude it. At most 200 updates are
   permitted; convergence can occur earlier. Numerical failures and exhausted
   searches have explicit statuses and retain the last accepted point.
