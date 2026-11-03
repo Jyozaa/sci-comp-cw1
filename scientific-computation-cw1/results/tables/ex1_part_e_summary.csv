@@ -1,0 +1,3 @@
+method,status,converged,iterations,x1,x2,value,gradient_norm,residual_norm,message,tol,maxit,step_mode,initial_alpha,fallback,condition_limit,c1,shrink,max_backtracks,stopping_statistic,omega,curvature_action,curvature_rtol
+Newton,converged,True,5,-1.1853025702152056,1.1853025702072133,-1.4991448256027757,5.887574483704016e-10,nan,gradient norm < tolerance,1e-06,200,fixed,1.0,none,1000000000000.0,0.0001,0.5,50,gradient_norm,,,
+BFGS,converged,True,12,-1.1853025548083924,1.1853025868354372,-1.4991448256027748,1.6758521654503568e-07,nan,gradient norm < tolerance,1e-06,200,fixed,1.0,,,0.0001,0.5,50,gradient_norm,0.01,fail,1e-12
