@@ -1,98 +1,96 @@
-"""1(b): Newton optimisation, with explicitly selected line search/safeguards."""
+"""1(b): Newton optimisation with objective Armijo step-halving."""
 
 import numpy as np
-from sc_cw1.common.utilities import (
-    NUMERICAL_ERRORS, SolverResult, armijo, checked_evaluation, finite, vector,
-    validate_controls, output_dirs, save_history, summary, write_csv, module_cli,
-)
 from .model import objective, gradient, hessian
+from sc_cw1.common.utilities import module_cli
 
 
-def newton(x0, *, fun=objective, grad=gradient, hess=hessian, tol=1e-6, maxit=200,
-           step_mode="armijo", alpha=1.0, fallback="none", condition_limit=1e12,
-           c1=1e-4, shrink=0.5, max_backtracks=50):
-    """Solve H(x_k) p_k=-∇J(x_k), then x_{k+1}=x_k+alpha_k p_k.
+def armijo(fun, x, value, g, delta, c1=1e-4, max_backtracks=50):
+    """Find alpha with J(x+alpha*delta)<=J(x)+c1*alpha*g.T*delta."""
+    slope = g @ delta
+    if not np.isfinite(slope) or slope >= 0:
+        return None
+    alpha = 1.0
+    with np.errstate(over="ignore", invalid="ignore"):
+        for _ in range(max_backtracks+1):
+            candidate = fun(x+alpha*delta)
+            if np.isfinite(candidate) and candidate <= value+c1*alpha*slope:
+                return alpha
+            alpha *= 0.5
+    return None  # Do not accept a step after a failed search.
 
-    Stop strictly on ||∇J||_2<tol; maxit counts updates, excluding x0.
-    step_mode='fixed' uses exactly alpha; 'armijo' uses objective decrease.
-    fallback='steepest_descent' explicitly replaces singular/ill-conditioned or
-    non-descent Armijo directions with -g. 'none' returns failure instead.
-    Fixed mode accepts non-descent Newton steps (stationarity solving), and
-    never silently enables safeguards. Every accepted direction is recorded.
-    Custom callables allow validation on known quadratics.
+
+def newton(x0, tol=1e-6, maxit=200, line_search=True, fallback=False,
+           fun=objective, grad=gradient, hess=hessian):
+    """Solve H*delta=-grad; stop at ||grad||₂<tol or after maxit updates.
+
+    fallback=True explicitly permits -grad if Newton cannot give a usable
+    descent direction. Fixed comparison runs use line_search=False, fallback=False.
     """
-    validate_controls(tol, maxit)
-    x = vector(x0)
-    if step_mode not in ("fixed", "armijo") or fallback not in ("none", "steepest_descent"):
-        raise ValueError("invalid step mode or fallback")
-    if not np.isfinite(alpha) or alpha <= 0 or not np.isfinite(condition_limit) or condition_limit <= 1:
-        raise ValueError("alpha>0 and condition_limit>1 must be finite")
-    if not (0 < c1 < 1 and 0 < shrink < 1):
-        raise ValueError("invalid line-search constants")
-    validate_controls(tol, max_backtracks)
-    result = SolverResult(parameters=dict(tol=tol, maxit=maxit, step_mode=step_mode,
-        initial_alpha=alpha, fallback=fallback, condition_limit=condition_limit,
-        c1=c1, shrink=shrink, max_backtracks=max_backtracks, stopping_statistic="gradient_norm"))
-    try:
-        f, g, gn = checked_evaluation(fun, grad, x)
-    except NUMERICAL_ERRORS as exc:
-        return result.stop("numerical_failure", f"initial evaluation: {exc}")
-    result.append(x, f, gn, step_kind="initial")
-    for _ in range(maxit):
-        if gn < tol:
-            return result.stop("converged", "gradient norm < tolerance")
-        try:
-            with np.errstate(over="raise", invalid="raise", divide="raise"):
-                H = np.asarray(finite(hess(x)), dtype=float)
-                if H.shape != (2, 2):
-                    raise ValueError("Hessian must have shape (2,2)")
-                condition = float(np.linalg.cond(H))
-                kind = "newton"
-                if not np.isfinite(condition) or condition > condition_limit:
-                    if fallback == "none":
-                        return result.stop("numerical_failure", "singular or ill-conditioned Hessian")
-                    p, kind = -g, "fallback_condition"
-                else:
-                    try:
-                        p = finite(np.linalg.solve(H, -g))
-                    except np.linalg.LinAlgError:
-                        if fallback == "none":
-                            raise
-                        p, kind = -g, "fallback_singular"
-                slope = float(finite(g @ p))
-                if step_mode == "armijo" and slope >= 0:
-                    if fallback == "none":
-                        return result.stop("line_search_failure", "Newton direction is not descent")
-                    p, kind = -g, "fallback_non_descent"
-                    slope = float(g @ p)
-            a = alpha if step_mode == "fixed" else armijo(
-                fun, x, f, g, p, initial_alpha=alpha, c1=c1,
-                shrink=shrink, max_backtracks=max_backtracks)
-            if a is None:
-                return result.stop("line_search_failure", "Armijo backtracking exhausted")
-            with np.errstate(over="raise", invalid="raise"):
-                xn = finite(x + a*p)
-            fn, gnew, gnnew = checked_evaluation(fun, grad, xn)
-            if np.array_equal(xn, x):
-                return result.stop("numerical_failure", "floating-point stagnation above tolerance")
-        except NUMERICAL_ERRORS as exc:
-            return result.stop("numerical_failure", str(exc))
-        result.append(xn, fn, gnnew, a, step_kind=kind, direction1=float(p[0]),
-                      direction2=float(p[1]), directional_derivative=slope, hessian_condition=condition)
-        x, f, g, gn = xn, fn, gnew, gnnew
-    if gn < tol:
-        return result.stop("converged", "gradient norm < tolerance at final allowed update")
-    return result
+    if tol <= 0 or maxit < 0:
+        raise ValueError("tol must be positive and maxit nonnegative")
+    x = np.array(x0, dtype=float)
+    xs, alphas, kinds, directions = [x.copy()], [0.0], ["initial"], [np.zeros(2)]
+    status = "max_iterations"
+    with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+        value, g = fun(x), grad(x)
+        values, norms = [value], [np.linalg.norm(g)]
+        if not np.all(np.isfinite(x)) or not np.isfinite(value) or not np.isfinite(norms[-1]):
+            status = "numerical_failure"
+        for _ in range(maxit):
+            if status == "numerical_failure" or norms[-1] < tol:
+                break
+            H = hess(x)
+            if not np.all(np.isfinite(H)):
+                status = "numerical_failure"
+                break
+            kind = "newton"
+            try:
+                if np.linalg.cond(H) > 1e12:
+                    raise np.linalg.LinAlgError("singular or poorly conditioned Hessian")
+                # Compute the Newton direction by solving H*delta=-grad.
+                delta = np.linalg.solve(H, -g)
+            except np.linalg.LinAlgError:
+                if not fallback:
+                    status = "numerical_failure"
+                    break
+                delta, kind = -g, "fallback_singular"
+            if line_search and g @ delta >= 0:
+                if not fallback:
+                    status = "line_search_failure"
+                    break
+                delta, kind = -g, "fallback_non_descent"
+            alpha = armijo(fun, x, value, g, delta) if line_search else 1.0
+            if alpha is None:
+                status = "line_search_failure"
+                break
+            xn = x+alpha*delta
+            vn, gn = fun(xn), grad(xn)
+            nn = np.linalg.norm(gn)
+            if (not np.isfinite(vn) or not np.isfinite(nn)
+                    or not np.all(np.isfinite(xn)) or np.array_equal(xn, x)):
+                status = "numerical_failure"
+                break
+            x, value, g = xn, vn, gn
+            xs.append(x.copy())
+            values.append(value)
+            norms.append(nn)
+            alphas.append(alpha)
+            kinds.append(kind)
+            directions.append(delta.copy())
+    if status != "numerical_failure" and norms[-1] < tol:
+        status = "converged"
+    return dict(x=xs[-1], iterates=np.array(xs), values=np.array(values),
+                gradient_norms=np.array(norms), alphas=np.array(alphas),
+                step_kinds=kinds, directions=np.array(directions),
+                iterations=len(xs)-1, status=status)
 
 
 def run(output="results"):
-    """Run 1(b) from four illustrative starts with explicit descent fallback."""
-    root = output_dirs(output)
-    runs = [newton(x, fallback="steepest_descent") for x in [(-2, 1), (0, 0), (2, -2), (1, 1)]]
-    for i, result in enumerate(runs):
-        save_history(root / "tables" / f"ex1_part_b_newton_{i}.csv", result)
-    write_csv(root / "tables/ex1_part_b_summary.csv", [summary(r, run=i) for i, r in enumerate(runs)])
-    return runs
+    """Demonstrate 1(b); the full different-start experiment is 1(c)."""
+    result = newton((-2., 1.), fallback=True)
+    print(result["status"], result["iterations"], result["x"])
+    return result
 
 
 if __name__ == "__main__":

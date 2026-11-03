@@ -1,2 +1,0 @@
-status,converged,iterations,x1,x2,value,gradient_norm,residual_norm,message,tol,maxit,omega,step_mode,initial_alpha,curvature_action,curvature_rtol,c1,shrink,max_backtracks,stopping_statistic
-converged,True,12,-1.1853025548083924,1.1853025868354372,-1.4991448256027748,1.6758521654503568e-07,nan,gradient norm < tolerance,1e-06,200,0.01,armijo,1.0,fail,1e-12,0.0001,0.5,50,gradient_norm

@@ -1,117 +1,80 @@
-"""1(d): inverse-Hessian BFGS; no Hessian evaluation or linear solve."""
+"""1(d): the printed inverse-Hessian BFGS update, without Hessians or solves."""
 
 import numpy as np
-from sc_cw1.common.utilities import (
-    NUMERICAL_ERRORS, SolverResult, armijo, checked_evaluation, finite, vector,
-    validate_controls, output_dirs, save_history, summary, write_csv, module_cli,
-)
 from .model import objective, gradient
+from .part_b_newton import armijo
+from sc_cw1.common.utilities import module_cli
 
 
-def inverse_bfgs_update(B, s, y, curvature_rtol=1e-12):
-    """Implement the brief's expanded inverse update, preserving product order.
-
-    B+ = B + ((s.T y + y.T B y)/(s.T y)^2) s s.T
-             - (B y s.T + s y.T B)/(s.T y).
-    Require s.T y > curvature_rtol*||s||*||y|| and >0 before division.
-    This is quasi-Newton: secant information replaces second derivatives.
-    Raises FloatingPointError on unusable curvature; never fabricates y or B.
-    """
-    if not np.isfinite(curvature_rtol) or not 0 <= curvature_rtol < 1:
-        raise ValueError("curvature_rtol must be in [0,1)")
-    B, s, y = np.asarray(B, dtype=float), vector(s), vector(y)
-    if B.shape != (2, 2):
-        raise ValueError("B must have shape (2,2)")
-    with np.errstate(over="raise", invalid="raise", divide="raise"):
-        finite(B)
-        sy = float(finite(s @ y))
-        scale = float(finite(np.linalg.norm(s) * np.linalg.norm(y)))
-        if sy <= 0 or sy <= curvature_rtol * scale:
-            raise FloatingPointError("nonpositive or numerically unsafe BFGS curvature")
-        By = B @ y
-        # Outer products are essential: no elementwise stand-in for matrix products.
-        updated = B + ((sy + y @ By) / sy**2) * np.outer(s, s)
-        updated -= (np.outer(By, s) + np.outer(s, y @ B)) / sy
-    return finite(updated)
+def inverse_bfgs_update(B, s, y):
+    """Update the inverse approximation using the expanded formula in the brief."""
+    sy = s @ y
+    if not np.isfinite(sy) or sy <= 0 or sy <= 1e-12*np.linalg.norm(s)*np.linalg.norm(y):
+        raise ValueError("nonpositive or unsafe BFGS curvature")
+    By = B @ y
+    updated = B + ((sy + y @ By) / sy**2) * np.outer(s, s)
+    updated -= (np.outer(By, s) + np.outer(s, y @ B)) / sy
+    if not np.all(np.isfinite(updated)):
+        raise ValueError("nonfinite inverse-Hessian update")
+    return updated
 
 
-def bfgs(x0, *, fun=objective, grad=gradient, omega=1.0, tol=1e-6, maxit=200,
-         step_mode="armijo", alpha=1.0, curvature_action="fail", curvature_rtol=1e-12,
-         c1=1e-4, shrink=0.5, max_backtracks=50):
-    """Use p=-B∇J, s=alpha*p, y=∇J(x+s)-∇J(x), and the printed B update.
-
-    B0=omega I, omega>0. Stop strictly on ||∇J||_2<tol.
-    Invalid curvature either fails explicitly (default), or retains B with a
-    recorded 'skipped_curvature' action when requested. No hidden reset, damping,
-    Hessian call or linear solve. The fixed-step comparison uses action='fail'.
-    """
-    validate_controls(tol, maxit)
-    x = vector(x0)
-    if not np.isfinite(omega) or omega <= 0 or not np.isfinite(alpha) or alpha <= 0:
-        raise ValueError("omega and alpha must be finite and positive")
-    if step_mode not in ("fixed", "armijo") or curvature_action not in ("fail", "skip"):
-        raise ValueError("invalid step mode or curvature action")
-    if not (0 <= curvature_rtol < 1 and 0 < c1 < 1 and 0 < shrink < 1):
-        raise ValueError("invalid curvature or line-search controls")
-    validate_controls(tol, max_backtracks)
-    B = omega * np.eye(2)
-    result = SolverResult(parameters=dict(tol=tol, maxit=maxit, omega=omega,
-        step_mode=step_mode, initial_alpha=alpha, curvature_action=curvature_action,
-        curvature_rtol=curvature_rtol, c1=c1, shrink=shrink, max_backtracks=max_backtracks,
-        stopping_statistic="gradient_norm"))
-    try:
-        f, g, gn = checked_evaluation(fun, grad, x)
-    except NUMERICAL_ERRORS as exc:
-        return result.stop("numerical_failure", f"initial evaluation: {exc}")
-    result.append(x, f, gn, step_kind="initial", update_action="initial")
-    if gn < tol:
-        return result.stop("converged", "initial gradient norm < tolerance")
-    for _ in range(maxit):
-        if gn < tol:
-            return result.stop("converged", "gradient norm < tolerance")
-        try:
-            with np.errstate(over="raise", invalid="raise", divide="raise"):
-                p = finite(-B @ g)
-                slope = float(finite(g @ p))
-            a = alpha if step_mode == "fixed" else armijo(
-                fun, x, f, g, p, initial_alpha=alpha, c1=c1,
-                shrink=shrink, max_backtracks=max_backtracks)
-            if a is None:
-                return result.stop("line_search_failure", "non-descent direction or Armijo exhausted")
-            with np.errstate(over="raise", invalid="raise"):
-                s = finite(a*p)
-                xn = finite(x + s)
-            fn, gnew, gnnew = checked_evaluation(fun, grad, xn)
-            if np.array_equal(xn, x):
-                return result.stop("numerical_failure", "floating-point stagnation above tolerance")
-            with np.errstate(over="raise", invalid="raise"):
-                y = finite(gnew - g)
-                sy = float(finite(s @ y))
-        except NUMERICAL_ERRORS as exc:
-            return result.stop("numerical_failure", str(exc))
-        result.append(xn, fn, gnnew, a, step_kind="bfgs", direction1=float(p[0]),
-            direction2=float(p[1]), directional_derivative=slope, curvature=sy,
-            update_action="not_needed_converged" if gnnew < tol else "pending")
-        x, f, g, gn = xn, fn, gnew, gnnew
-        if gn < tol:
-            return result.stop("converged", "gradient norm < tolerance")
-        try:
-            B = inverse_bfgs_update(B, s, y, curvature_rtol)
-            result.history[-1]["update_action"] = "inverse_bfgs"
-        except NUMERICAL_ERRORS as exc:
-            result.history[-1]["update_action"] = "failed_curvature"
-            if curvature_action == "fail":
-                return result.stop("numerical_failure", str(exc))
-            result.history[-1]["update_action"] = "skipped_curvature"
-    return result
+def bfgs(x0, omega=1.0, tol=1e-6, maxit=200, line_search=True,
+         fun=objective, grad=gradient):
+    """Use delta=-B*grad and stop at ||grad||₂<tol; invalid updates fail explicitly."""
+    if omega <= 0 or tol <= 0 or maxit < 0:
+        raise ValueError("omega/tol must be positive and maxit nonnegative")
+    x = np.array(x0, dtype=float)
+    B = omega*np.eye(2)
+    xs, alphas, directions = [x.copy()], [0.0], [np.zeros(2)]
+    status = "max_iterations"
+    with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+        value, g = fun(x), grad(x)
+        values, norms = [value], [np.linalg.norm(g)]
+        if not np.all(np.isfinite(x)) or not np.isfinite(value) or not np.isfinite(norms[-1]):
+            status = "numerical_failure"
+        for _ in range(maxit):
+            if status == "numerical_failure" or norms[-1] < tol:
+                break
+            delta = -B @ g
+            alpha = armijo(fun, x, value, g, delta) if line_search else 1.0
+            if alpha is None:
+                status = "line_search_failure"
+                break
+            s = alpha*delta
+            xn = x+s
+            vn, gn = fun(xn), grad(xn)
+            nn = np.linalg.norm(gn)
+            if (not np.isfinite(vn) or not np.isfinite(nn)
+                    or not np.all(np.isfinite(xn)) or np.array_equal(xn, x)):
+                status = "numerical_failure"
+                break
+            y = gn-g
+            x, value, g = xn, vn, gn
+            xs.append(x.copy())
+            values.append(value)
+            norms.append(nn)
+            alphas.append(alpha)
+            directions.append(delta.copy())
+            if nn < tol:
+                break  # No further direction needs B after convergence.
+            try:
+                B = inverse_bfgs_update(B, s, y)
+            except ValueError:
+                status = "numerical_failure"
+                break
+    if status != "numerical_failure" and norms[-1] < tol:
+        status = "converged"
+    return dict(x=xs[-1], iterates=np.array(xs), values=np.array(values),
+                gradient_norms=np.array(norms), alphas=np.array(alphas),
+                directions=np.array(directions), step_kinds=["initial"]+["bfgs"]*(len(xs)-1),
+                iterations=len(xs)-1, status=status)
 
 
 def run(output="results"):
-    """Run standalone inverse BFGS with Armijo from (-2,1), omega=0.01."""
-    root = output_dirs(output)
-    result = bfgs((-2, 1), omega=0.01)
-    save_history(root / "tables/ex1_part_d_bfgs_history.csv", result)
-    write_csv(root / "tables/ex1_part_d_summary.csv", [summary(result)])
+    """Demonstrate 1(d); 1(e) supplies the required convergence comparison."""
+    result = bfgs((-2., 1.), omega=.01)
+    print(result["status"], result["iterations"], result["x"])
     return result
 
 

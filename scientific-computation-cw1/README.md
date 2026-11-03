@@ -1,21 +1,12 @@
 # Scientific Computation Coursework 1
 
-Reproducible Python implementations of the visible COMP5930M Exercise 1 and 2
-requirements. The code uses NumPy, Matplotlib and pytest; no SciPy optimiser,
-automatic differentiation, GPU, remote service or paid API is required.
+Question-by-question Python code for COMP5930M CW1. The implementation follows
+the original brief and the ordinary function/NumPy/loop style of the supplied
+notebooks. It uses NumPy, Matplotlib and pytest, with no external solvers.
 
-All numerical sections are implemented. Review 1 adds a rigorous
-**computer-assisted global-minimum proof** for Exercise 1(c), using analytical
-reduction and exact rational root/value enclosures. See
-[GLOBAL_MINIMUM_ANALYSIS.md](GLOBAL_MINIMUM_ANALYSIS.md). The original algorithms,
-parameters and numerical histories are unchanged. The residual stopping criterion
-is lecture-supported; initial momentum and safety choices are explicit
-conventions classified in [REVIEW_REQUIRED.md](REVIEW_REQUIRED.md).
+## Install and run
 
-## Install and reproduce
-
-Python **3.12 or newer** is required with the pinned dependencies. Development
-and verification used CPython 3.13.5. From this directory:
+Use Python 3.12 or newer (tested here with 3.13.5):
 
 ```bash
 python3 -m venv .venv
@@ -26,109 +17,63 @@ python -m pytest -q
 python scripts/run_all.py
 ```
 
-On Windows activate `.venv\Scripts\activate` instead. `requirements.txt` pins the
-three direct dependencies. `requirements-lock.txt` also records transitive
-versions used here; use it in place of `requirements.txt` for closer replication.
-The package install makes `sc_cw1` importable. pytest and the all-experiment
-script use the current source tree directly. After editing source, reinstall
-with `python -m pip install . --no-deps --force-reinstall` before using the
-independent module commands, so the installed package reflects those edits.
+The last command uses the current source tree and regenerates the six required
+300 DPI PNGs in `results/figures/`, eleven CSVs in `results/tables/`, and
+RESULTS.md. It takes seconds on a normal laptop. No source PDF, ZIP, internet
+service, GPU or random seed is needed to run it. Source materials stay outside
+the repository. Use `--output /tmp/cw1/results` for another destination;
+RESULTS.md is written in that directory's parent.
 
-The all-experiment command takes seconds on a laptop. It regenerates the six
-300 DPI PNGs under `results/figures/`, 28 CSVs under `results/tables/`,
-`results/manifest.json`, and [RESULTS.md](RESULTS.md). The manifest records the
-runtime, run parameters, statuses and output SHA-256 hashes. Different platforms
-may produce small floating-point differences and different PNG hashes/fonts.
-There is no random sampling. Source PDFs/notebooks are unnecessary at runtime.
+After source edits, reinstall with `python -m pip install . --no-deps --force-reinstall`
+before using the independent `python -m` commands, which import the installed
+package. pytest and `scripts/run_all.py` use `src/` directly.
 
-Choose another results directory with:
+## Find or run a question
 
-```bash
-python scripts/run_all.py --output /tmp/cw1-check/results
-```
-
-The computed `RESULTS.md` is written to the parent of that results directory.
-Existing files with generated names there are overwritten. Independent question
-commands update only their own outputs; regenerate the complete digest/manifest
-with `run_all.py` after changing experiments.
-
-## Run each question independently
-
-After the package install, each command works from this directory:
-
-| Part | Command |
+| Part | Location / independent command |
 | --- | --- |
-| 1(a) | `python -c "from sc_cw1.exercise1.model import objective,gradient,hessian; print(objective([0,0]),gradient([0,0]),hessian([0,0]))"` |
-| 1(b) | `python -m sc_cw1.exercise1.part_b_newton` |
+| 1(a) | `src/sc_cw1/exercise1/model.py`: objective, gradient, Hessian |
+| 1(b) | `python -m sc_cw1.exercise1.part_b_newton` (prints one demonstration; 1(c) runs multiple starts) |
 | 1(c) | `python -m sc_cw1.exercise1.part_c_minima` |
-| 1(d) | `python -m sc_cw1.exercise1.part_d_bfgs` |
+| 1(d) | `python -m sc_cw1.exercise1.part_d_bfgs` (prints one demonstration; 1(e) compares convergence) |
 | 1(e) | `python -m sc_cw1.exercise1.part_e_comparison` |
-| 2(a) | `python -c "from sc_cw1.exercise2.model import F,jacobian,phi,grad_phi; print(F([0,-1]),jacobian([0,-1]),phi([0,-1]),grad_phi([0,-1]))"` |
+| 2(a) | `src/sc_cw1/exercise2/model.py`: residual, Jacobian and squared residual |
 | 2(b) | `python -m sc_cw1.exercise2.part_b_contours` |
 | 2(c) | `python -m sc_cw1.exercise2.part_c_intersections` |
 | 2(d) | `python -m sc_cw1.exercise2.part_d_gradient_descent` |
-| 2(e) | `python -m sc_cw1.exercise2.part_e_momentum` |
+| 2(e) | `python -m sc_cw1.exercise2.part_e_momentum` (prints one example; 2(f) supplies all three runs) |
 | 2(f) | `python -m sc_cw1.exercise2.part_f_comparison` |
 
-All numerical question modules accept `--output results`. Analytical parts 1(a)
-and 2(a) define functions rather than experiments; their derivations still need
-to be presented in the report. No complete coursework report is generated.
+All numerical modules accept `--output results`. The analytical parts still
+need their written derivations in the separately prepared report.
 
-## Parameters and numerical conventions
+## Settings and simple conventions
 
-| Experiment | Settings |
-| --- | --- |
-| 1(b), 1(c) | Newton with exact Hessian, objective Armijo; `tol=1e-6`, `maxit=200`; demonstration/search runs explicitly enable steepest-descent fallback |
-| 1(c) | Unchanged 21×21 starts spanning [-2,2]²; clustering distance 1e-4; classification eigenvalue threshold 1e-7; separate exact rational global proof |
-| 1(d) | Inverse BFGS, objective Armijo, B0=.01 I, `tol=1e-6`, `maxit=200`; invalid curvature fails explicitly |
-| 1(e) | **Prescribed** x0=(-2,1), alpha=1 for both solvers, BFGS omega=.01; no line search/fallback/skipped update; supplementary `tol=1e-6`, `maxit=200` |
-| 2(b) | 401×401 residual grid, supplementary local refinement; resolution checks at 201,401,801 |
-| 2(c) | 2001 samples per zero curve; piecewise-linear graphical estimates; separate bisection refinement |
-| 2(d), 2(f) | **Prescribed** x0=(0,-1), lambda=.05, tol=1e-6, maxit=200; 2(f) gamma=.1,.3,.7 |
-| 2(e), 2(f) | Previous momentum d_-1=0 (assumption); printed recurrence with no gradient rescaling |
+- Exercise 1: analytical gradient/Hessian; gradient norm strictly below 1e-6;
+  at most 200 updates. These stopping numbers are implementation choices.
+  The multistart grid is 21×21 over [-2,2]²; points within 1e-4 are merged.
+- Newton/Armijo starts at alpha=1 and halves rejected steps (c1=1e-4, up to
+  50 halvings). The library defaults to no fallback. 1(b/c) explicitly allow
+  -gradient if the Hessian is singular/poorly conditioned (limit 1e12) or the
+  Newton direction is not descent; histories distinguish those steps.
+- **1(e):** prescribed x0=(-2,1), alpha=1 and BFGS omega=.01. Line search and
+  Newton fallback are disabled. Invalid BFGS curvature is reported as failure,
+  never repaired by editing the printed inverse update or resetting B.
+- **2(d/f):** prescribed x0=(0,-1), step=.05, tol=1e-6, maxit=200; 2(f) uses
+  gamma=.1,.3,.7. Following Unit 10, stopping uses ||F||₂, not its square or the
+  residual gradient. The previous momentum direction starts at zero.
+- Histories include x0; iteration counts exclude it. At most 200 updates are
+  permitted; convergence can occur earlier. Numerical failures and exhausted
+  searches have explicit statuses and retain the last accepted point.
 
-The Exercise 1 stopping settings, search grid, line-search constants and
-safeguards are implementation choices where the brief gives no numerical
-values. Armijo starts at 1, halves rejected steps, uses c1=1e-4, and allows 50
-backtracks. All solvers use **strict `< tol`**. Exercise 1 checks the gradient
-norm; Exercise 2 checks the residual norm, following Unit 10. A small step or
-small residual gradient never substitutes for the Exercise 2 stopping statistic.
+Solvers return ordinary dictionaries containing NumPy arrays (`iterates`,
+`values`, `gradient_norms`, `alphas`, `directions`) and `status`, `iterations`,
+`x`. Exercise 2 also returns `residual_norms`. There is no result class.
 
-`newton(..., fallback="none")` is the library default; experiments 1(b/c)
-explicitly opt into `fallback="steepest_descent"`. Histories record ordinary
-Newton steps and fallback reasons separately. Fixed Newton is a stationarity
-solver and may approach a saddle or maximum; classification is a separate check.
-Fallbacks are disabled for 1(e).
-
-`bfgs` implements the **expanded inverse** update printed in the brief, without
-Hessians or linear solves. Nonpositive/unsafe curvature fails by default. An
-explicit `curvature_action="skip"` option exists for additional experiments,
-but none of the required runs uses it.
-
-## Reading results and reviewing the implementation
-
-- [CODE_MAP.md](CODE_MAP.md): every part, function, shared mathematical helper and output.
-- [RESULTS.md](RESULTS.md): computed coordinates, convergence and trajectory evidence.
-- [VALIDATION.md](VALIDATION.md): actual verification performed and its limits.
-- [GLOBAL_MINIMUM_ANALYSIS.md](GLOBAL_MINIMUM_ANALYSIS.md): reduction, tail bounds, exact root count and unique global minimum.
-- [REVIEW_REQUIRED.md](REVIEW_REQUIRED.md): classified conventions and remaining reporting limitations.
-- [REPORT_SNIPPETS.md](REPORT_SNIPPETS.md): literal report-ready source excerpts, checked against the executed algorithms.
-- [REVIEW1_CHANGES.md](REVIEW1_CHANGES.md): substantive modifications and baseline comparison.
-- [REPORT_CODE_GUIDE.md](REPORT_CODE_GUIDE.md): source listings and outputs for the separate report.
-- [SOURCE_AUDIT.md](SOURCE_AUDIT.md): source authority, equation checks and lecture support.
-- [REVIEW_HANDOFF.md](REVIEW_HANDOFF.md): concise independent-review brief.
-- [COMPLETION_REPORT.md](COMPLETION_REPORT.md): full status table, output inventory and reproduction commands.
-
-Solver results contain `history`, `status`, `message`, `parameters`, `nit`,
-`iterates`, `x` and `converged`. Histories include x0; `nit` counts completed
-finite updates, excluding rejected trials. Each row's `alpha`/direction describes
-the incoming step; row zero has alpha=0. Exit states are `converged`,
-`max_iterations`, `numerical_failure`, and `line_search_failure`. Invalid API
-controls raise `ValueError`; floating-point failures return a status and retain
-the last finite iterate. Failed initial evaluations have empty histories.
-Undefined summary metrics (e.g. an F residual in Exercise 1) are CSV `nan` and
-JSON `null`, not evidence of a solver failure. All required runs are finite.
-
-The source documents remain outside the project and are ignored if copied in.
-Only authored code/documentation and generated results should go to GitHub.
-Nothing is committed, pushed or submitted automatically.
+[CODE_MAP.md](CODE_MAP.md) maps every calculation/output;
+[RESULTS.md](RESULTS.md) gives the computed findings;
+[REPORT_SNIPPETS.md](REPORT_SNIPPETS.md) gives the three requested code listings;
+[REVIEW_REQUIRED.md](REVIEW_REQUIRED.md) records limitations and manual checks;
+[AUDIT_CHANGELOG.md](AUDIT_CHANGELOG.md) contains the source-based checklist,
+change/deletion inventory and actual verification. No final PDF report,
+commit or push is generated automatically.

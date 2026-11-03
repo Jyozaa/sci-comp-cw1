@@ -1,32 +1,23 @@
-"""2(e): momentum extension; the three changed lines are marked in fixed_descent."""
+"""2(e): enable the printed momentum term in the ordinary descent loop."""
 
-import numpy as np
-from sc_cw1.common.utilities import output_dirs, save_history, summary, write_csv, module_cli
+from .part_d_gradient_descent import gradient_descent
 from .model import F, jacobian
-from .part_d_gradient_descent import fixed_descent
+from sc_cw1.common.utilities import module_cli
 
 
-def momentum_descent(x0=(0., -1.), *, gamma=.3, step_size=.05, tol=1e-6,
-                     maxit=200, initial_direction=None, residual=F, jac=jacobian):
-    """Use printed d_k=gamma*d_{k-1}+2J.T F, x_{k+1}=x_k-lambda*d_k.
-
-    Zero initial direction is an explicit convention, overridable for review.
-    The common loop keeps all convergence/recording logic identical to 2(d).
-    gamma*previous adds a decaying memory of earlier gradients to the current
-    gradient; it is not (1-gamma)*g and not Nesterov's look-ahead gradient.
-    """
-    if not np.isfinite(gamma) or not 0 < gamma < 1:
-        raise ValueError("momentum gamma must be strictly between 0 and 1")
-    return fixed_descent(x0, gamma=gamma, step_size=step_size, tol=tol,
-                         maxit=maxit, initial_direction=initial_direction, residual=residual, jac=jac)
+def momentum_descent(x0=(0., -1.), gamma=.3, step_size=.05, tol=1e-6, maxit=200,
+                     residual=F, jac=jacobian):
+    """Use d_k=gamma*d_(k-1)+2J.T F with zero initial direction."""
+    if not 0 < gamma < 1:
+        raise ValueError("momentum gamma must be between 0 and 1")
+    return gradient_descent(x0=x0, step_size=step_size, tol=tol, maxit=maxit,
+                            gamma=gamma, residual=residual, jac=jac)
 
 
 def run(output="results"):
-    """Standalone 2(e) illustration at gamma=.3 (the required sweep is 2(f))."""
-    root = output_dirs(output)
+    """Demonstrate 2(e); 2(f) supplies the required independent comparison runs."""
     result = momentum_descent(gamma=.3)
-    save_history(root / "tables/ex2_part_e_momentum_history.csv", result)
-    write_csv(root / "tables/ex2_part_e_summary.csv", [summary(result)])
+    print(result["status"], result["iterations"], result["x"])
     return result
 
 

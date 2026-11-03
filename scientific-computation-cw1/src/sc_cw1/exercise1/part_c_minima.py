@@ -1,127 +1,96 @@
-"""1(c): deterministic multistart, stationary-point classification and contours."""
+"""1(c): multiple starts, distinct stationary points and objective contours."""
 
 import numpy as np
-from sc_cw1.common.utilities import (
-    checked_evaluation, finite, finite_difference_jacobian, output_dirs, pyplot,
-    save_figure, summary, write_csv, module_cli,
-)
 from .model import objective, gradient, hessian, objective_grid
 from .part_b_newton import newton
-from .global_analysis import run as run_global_analysis
+from sc_cw1.common.utilities import output_dirs, plt, save_figure, write_csv, module_cli
 
 
-def classify_stationary_point(x, *, grad=gradient, hess=hessian,
-                              gradient_tol=1e-6, eigenvalue_tol=1e-7):
-    """Classify an unconstrained point from ||g|| and symmetric Hessian eigenvalues.
-
-    Positive eigenvalues certify a strict local minimum at an exact stationary
-    point. Near-zero eigenvalues are inconclusive; a small gradient alone is
-    insufficient. Tolerances are absolute and the point remains numerical.
-    """
-    gn = float(finite(np.linalg.norm(grad(x))))
-    H = finite(hess(x))
-    eig = np.linalg.eigvalsh((H + H.T) / 2)
-    if gn >= gradient_tol:
+def classify_stationary_point(x, tol=1e-6):
+    """Use the two-variable second-derivative test, after checking stationarity."""
+    gnorm = np.linalg.norm(gradient(x))
+    H = hessian(x)
+    determinant = np.linalg.det(H)
+    label = "inconclusive"
+    if gnorm >= tol:
         label = "not_stationary"
-    elif eig[0] > eigenvalue_tol:
-        label = "minimum"
-    elif eig[-1] < -eigenvalue_tol:
-        label = "maximum"
-    elif eig[0] < -eigenvalue_tol and eig[-1] > eigenvalue_tol:
+    elif determinant < -1e-7:
         label = "saddle"
-    else:
-        label = "inconclusive"
-    return dict(classification=label, gradient_norm=gn,
-                eigenvalue_min=float(eig[0]), eigenvalue_max=float(eig[-1]))
+    elif determinant > 1e-7 and H[0, 0] > 1e-7:
+        label = "minimum"
+    elif determinant > 1e-7 and H[0, 0] < -1e-7:
+        label = "maximum"
+    return dict(classification=label, gradient_norm=gnorm,
+                hessian_determinant=determinant, hessian_11=H[0, 0])
 
 
-def distinct_stationary_points(runs, *, fun=objective, grad=gradient, hess=hessian,
-                               distance_tol=1e-4, gradient_tol=1e-6):
-    """Cluster only converged, stationary runs within distance_tol in Euclidean x.
-
-    Representatives are sorted by increasing gradient norm before clustering,
-    so the most accurate point is retained. 1e-4 is much smaller than observed
-    separation, while allowing small gradient-to-position amplification.
-    """
-    if not np.isfinite(distance_tol) or distance_tol <= 0:
-        raise ValueError("distance_tol must be positive and finite")
-    accepted = sorted((r for r in runs if r.converged),
-                      key=lambda r: np.linalg.norm(grad(r.x)))
-    clusters = []
-    for result in accepted:
-        x = result.x
-        info = classify_stationary_point(x, grad=grad, hess=hess, gradient_tol=gradient_tol)
+def distinct_stationary_points(runs, distance_tol=1e-4):
+    """Merge converged points separated by less than distance_tol in x."""
+    good = [r for r in runs if r["status"] == "converged"]
+    good.sort(key=lambda r: r["gradient_norms"][-1])
+    points = []
+    for result in good:
+        x = result["x"]
+        info = classify_stationary_point(x)
         if info["classification"] == "not_stationary":
             continue
-        duplicate = next((c for c in clusters if np.linalg.norm(
-            x - np.array([c["x1"], c["x2"]])) < distance_tol), None)
-        if duplicate is not None:
-            duplicate["runs_in_cluster"] += 1
+        for point in points:
+            if np.linalg.norm(x-np.array([point["x1"], point["x2"]])) < distance_tol:
+                point["runs_in_cluster"] += 1
+                break
         else:
-            clusters.append(dict(x1=float(x[0]), x2=float(x[1]), value=float(fun(x)),
-                                 **info, status="converged", runs_in_cluster=1))
-    clusters.sort(key=lambda c: c["value"])
-    minima = [c for c in clusters if c["classification"] == "minimum"]
-    for i, row in enumerate(clusters):
-        row["point_id"] = i + 1
-        row["lowest_minimum_found"] = bool(minima and row is minima[0])
-    return clusters
+            points.append(dict(x1=x[0], x2=x[1], value=objective(x),
+                               **info, runs_in_cluster=1))
+    points.sort(key=lambda p: p["value"])
+    minima = [p for p in points if p["classification"] == "minimum"]
+    for i, point in enumerate(points):
+        point["point_id"] = i+1
+        point["lowest_minimum_found"] = bool(minima and point is minima[0])
+    return points
 
 
-def multistart(grid_size=21, *, tol=1e-6, maxit=200, fallback="steepest_descent"):
-    """Run Newton/Armijo on a grid including all edges of [-2,2]^2.
-
-    Explicit fallback makes this a safeguarded Newton search. It can converge
-    to any stationary point and is not an exhaustive/global certification.
-    """
-    if isinstance(grid_size, bool) or not isinstance(grid_size, int) or grid_size < 2:
-        raise ValueError("grid_size must be an integer >=2")
-    starts = [(u, v) for u in np.linspace(-2, 2, grid_size)
-              for v in np.linspace(-2, 2, grid_size)]
-    runs = [newton(x, tol=tol, maxit=maxit, fallback=fallback) for x in starts]
-    points = distinct_stationary_points(runs, gradient_tol=tol)
-    return starts, runs, points
+def multistart(grid_size=21):
+    """Run Newton/Armijo from a grid spanning the required square."""
+    axis = np.linspace(-2, 2, grid_size)
+    starts = [(u, v) for u in axis for v in axis]
+    # The optional -gradient safeguard is taught gradient descent, recorded separately.
+    runs = [newton(x, fallback=True) for x in starts]
+    return starts, runs, distinct_stationary_points(runs)
 
 
 def run(output="results", grid_size=21):
-    """Run 1(c), save every start/status, distinct points and contour figure."""
+    """Save the different-start results, stationary points and required contours."""
     root = output_dirs(output)
     starts, runs, points = multistart(grid_size)
     rows = []
     for x0, r in zip(starts, runs):
-        row = summary(r, start_x1=x0[0], start_x2=x0[1])
-        row["fallback_steps"] = sum(s.get("step_kind", "").startswith("fallback") for s in r.history)
-        row["newton_steps"] = sum(s.get("step_kind") == "newton" for s in r.history)
-        row["classification"] = (classify_stationary_point(r.x)["classification"]
-                                 if r.converged else "not_classified_failed_run")
-        rows.append(row)
-    write_csv(root / "tables/ex1_part_c_multistart.csv", rows)
-    write_csv(root / "tables/ex1_part_c_stationary_points.csv", points)
-    # Supplementary proof leaves all multistart iterates/results unchanged.
-    proof = run_global_analysis(root)
-    best = next(row for row in points if row["lowest_minimum_found"])
-    a = proof["global_root"]["a"]
-    if np.linalg.norm(np.array([best["x1"], best["x2"]])-np.array([a, -a])) > 1e-4:
-        raise RuntimeError("numerical lowest minimum does not match the proven global root")
-    plt = pyplot()
-    fig, ax = plt.subplots(figsize=(7.4, 6.2), layout="constrained")
+        rows.append(dict(start_x1=x0[0], start_x2=x0[1], x1=r["x"][0], x2=r["x"][1],
+                         value=r["values"][-1], gradient_norm=r["gradient_norms"][-1],
+                         iterations=r["iterations"], status=r["status"],
+                         newton_steps=r["step_kinds"].count("newton"),
+                         fallback_steps=sum(k.startswith("fallback") for k in r["step_kinds"]),
+                         classification=classify_stationary_point(r["x"])["classification"]
+                         if r["status"] == "converged" else "not_classified"))
+    write_csv(root/"tables/ex1_part_c_multistart.csv", rows)
+    write_csv(root/"tables/ex1_part_c_stationary_points.csv", points)
     X, Y = np.meshgrid(np.linspace(-2, 2, 501), np.linspace(-2, 2, 501))
     Z = objective_grid(X, Y)
-    levels = np.r_[np.linspace(Z.min()+0.05, 2, 12), [3, 5, 8, 12, 20, 35, 55]]
+    levels = np.r_[np.linspace(Z.min()+.05, 2, 12), [3, 5, 8, 12, 20, 35, 55]]
+    fig, ax = plt.subplots(figsize=(7.4, 6.2), layout="constrained")
     cs = ax.contour(X, Y, Z, levels=levels, cmap="viridis", linewidths=.8)
     fig.colorbar(cs, ax=ax, label="Objective J")
-    for row in points:
-        best = row["lowest_minimum_found"]
-        marker = "*" if best else ("o" if row["classification"] == "minimum" else "x")
-        ax.scatter(row["x1"], row["x2"], marker=marker, s=160 if best else 55,
-                   color="crimson" if best else "darkorange", zorder=4,
-                   label="Global minimum (see proof)" if best else f"{row['classification']} {row['point_id']}")
-        ax.annotate(str(row["point_id"]), (row["x1"], row["x2"]), xytext=(7, 7), textcoords="offset points")
-    ax.set(xlabel="$x_1$", ylabel="$x_2$", title=f"1(c): Newton multistart ({grid_size} × {grid_size} starts)",
+    for p in points:
+        best = p["lowest_minimum_found"]
+        marker = "*" if best else ("o" if p["classification"] == "minimum" else "x")
+        label = "Lowest minimum found (global candidate)" if best else p["classification"]
+        ax.scatter(p["x1"], p["x2"], marker=marker, s=140 if best else 55,
+                   color="crimson" if best else "darkorange", label=label, zorder=4)
+        ax.annotate(str(p["point_id"]), (p["x1"], p["x2"]), xytext=(7, 7), textcoords="offset points")
+    ax.set(xlabel="$x_1$", ylabel="$x_2$", title="1(c): objective contours and stationary points",
            xlim=(-2, 2), ylim=(-2, 2), aspect="equal")
-    ax.legend(fontsize=8, loc="upper right")
-    save_figure(fig, root / "figures/ex1_part_c_contours.png")
-    return dict(starts=starts, runs=runs, points=points, global_analysis=proof)
+    ax.legend(fontsize=8)
+    save_figure(fig, root/"figures/ex1_part_c_contours.png")
+    return dict(starts=starts, runs=runs, points=points)
 
 
 if __name__ == "__main__":

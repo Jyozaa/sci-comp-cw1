@@ -1,4 +1,0 @@
-status,converged,iterations,x1,x2,value,gradient_norm,residual_norm,message,step_size,gamma,tol,maxit,initial_direction1,initial_direction2,stopping_statistic,objective_increases,step_reversals,path_length
-converged,True,64,0.3522880529055506,0.7618852443830776,8.891040707228828e-13,3.07591552026167e-06,9.429231520770305e-07,residual norm < tolerance,0.05,0.1,1e-06,200,0.0,0.0,residual_norm,0,0,2.1151874483362483
-converged,True,36,0.35228844947143184,0.7618851916763743,7.19122931866669e-13,3.1459575560424904e-06,8.480111625837652e-07,residual norm < tolerance,0.05,0.3,1e-06,200,0.0,0.0,residual_norm,1,1,2.0427568795224995
-converged,True,79,0.35228859428526016,0.7618852432274196,7.137777952865082e-13,3.299640784709299e-06,8.448537123588369e-07,residual norm < tolerance,0.05,0.7,1e-06,200,0.0,0.0,residual_norm,28,5,3.2037377194065564

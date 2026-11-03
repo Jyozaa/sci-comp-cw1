@@ -1,3 +1,0 @@
-grid_x1,grid_x2,grid_size,grid_phi,status,converged,iterations,x1,x2,value,gradient_norm,residual_norm,message,tol,maxit,step_mode,initial_alpha,fallback,condition_limit,c1,shrink,max_backtracks,stopping_statistic
-1.38,-0.9299999999999999,401,9.020444593720812e-05,converged,True,2,1.3773368778985018,-0.9260760698180043,4.923957593265148e-17,2.993449667736602e-08,nan,gradient norm < tolerance,1e-07,200,armijo,1.0,steepest_descent,1000000000000.0,0.0001,0.5,50,gradient_norm
-0.3500000000000001,0.7600000000000002,401,2.345677769805772e-05,converged,True,2,0.3522884567347559,0.7618856585318005,3.138111114866409e-19,1.8446883573585715e-09,nan,gradient norm < tolerance,1e-07,200,armijo,1.0,steepest_descent,1000000000000.0,0.0001,0.5,50,gradient_norm

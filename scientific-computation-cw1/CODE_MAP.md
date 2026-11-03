@@ -1,94 +1,36 @@
 # Code map
 
-Paths below are relative to `src/sc_cw1/`, unless otherwise stated. A `run`
-function generates a question's outputs; its solver/model functions contain the
-mathematical work. All plotting/export helpers are listed at the end.
+Paths are relative to `src/sc_cw1/`. All algorithm functions return plain
+dictionaries of arrays. Basic CSV/plot helpers contain no numerical update.
 
-## Exercise 1
-
-| Part | Implementation, functions and responsibilities | Outputs under results/ |
+| Part | Functions/files and every mathematical dependency | Required output / report use |
 | --- | --- | --- |
-| 1(a) | `exercise1/model.py`: `objective` implements J; `gradient` contains the hand-derived components and chain-rule explanation; `hessian` gives the exact second derivatives; `numerical_hessian` centrally differences `gradient`; `objective_grid` evaluates the identical J equation for plots. `common/utilities.py:finite_difference_jacobian` supplies central differences. | Derivative verification in `tests/test_exercise1.py`; no prescribed figure |
-| 1(b) | `exercise1/part_b_newton.py:newton` solves H p=-g with `numpy.linalg.solve`, checks conditioning/descent, selects Armijo or fixed steps, records fallback reasons and convergence; `run` demonstrates four starts. `exercise1/model.py:objective,gradient,hessian` supplies J/g/H. **`common/utilities.py:armijo` implements the entire sufficient-decrease calculation and step-halving loop.** `checked_evaluation` computes f,g,||g|| safely. | `tables/ex1_part_b_newton_0.csv` through `_3.csv`; `ex1_part_b_summary.csv` |
-| 1(c) | `exercise1/part_c_minima.py:multistart` constructs the full square grid and calls `part_b_newton.newton` with explicit fallback; `distinct_stationary_points` excludes failed/nonstationary runs and clusters by distance; `classify_stationary_point` tests ||g|| and Hessian eigenvalues; `run` selects the lowest minimum found, exports per-start outcomes and draws contours. It imports `exercise1/model.py:objective,gradient,hessian,objective_grid` and all 1(b) mathematics, including `utilities.armijo`. | `figures/ex1_part_c_contours.png`; `tables/ex1_part_c_multistart.csv`, `ex1_part_c_stationary_points.csv` |
-| 1(d) | `exercise1/part_d_bfgs.py:bfgs` initialises B=omega I, takes p=-Bg, computes s and y, records curvature and exits; **`inverse_bfgs_update` implements every term of the printed inverse update**; `run` executes the standalone demonstration. `exercise1/model.py:objective,gradient` supplies f/g, with no Hessian import. `utilities.armijo` selects normal steps; `checked_evaluation` supplies scalar diagnostics. | `tables/ex1_part_d_bfgs_history.csv`, `ex1_part_d_summary.csv` |
-| 1(e) | `exercise1/part_e_comparison.py:compare` fixes start (-2,1), alpha=1 and BFGS omega=.01; explicitly disables Newton fallback and BFGS update skipping; `run` plots every gradient norm including k=0. Calls `part_b_newton.newton`, `part_d_bfgs.bfgs,inverse_bfgs_update`, and `model.objective,gradient,hessian`; their fixed branches bypass `utilities.armijo`. | `figures/ex1_part_e_newton_vs_bfgs.png`; `tables/ex1_part_e_newton_history.csv`, `ex1_part_e_bfgs_history.csv`, `ex1_part_e_summary.csv` |
+| 1(a) | `exercise1/model.py:objective,gradient` implement the original J and analytical partial derivatives; `hessian` gives second derivatives; `numerical_hessian` checks the gradient using central differences. `objective_grid` evaluates the identical formula on arrays. | Written first-order derivation; derivative tests. No figure/listing explicitly requested here. |
+| 1(b) | **`exercise1/part_b_newton.py:newton,armijo`** contain the entire Newton solve and objective step-halving condition. They use `model.objective,gradient,hessian` (or the permitted numerical Hessian), `numpy.linalg.solve` and explicit status checks. There is no numerical helper in another directory. | Source listing explicitly required; standalone `run` prints an example. The different-start evidence comes from 1(c). |
+| 1(c) | `exercise1/part_c_minima.py:multistart` creates the square grid and calls `part_b_newton.newton` with recorded optional -gradient fallback. `classify_stationary_point` uses `model.gradient,hessian` and the simple 2×2 second-derivative test. `distinct_stationary_points` merges converged points by distance and compares `model.objective`. `run` draws `model.objective_grid`. | `figures/ex1_part_c_contours.png`; `tables/ex1_part_c_multistart.csv`, `ex1_part_c_stationary_points.csv`. Lowest candidate is numerical evidence, not a global proof. |
+| 1(d) | **`exercise1/part_d_bfgs.py:bfgs,inverse_bfgs_update`** initialise B, calculate delta/s/y and apply the printed expanded inverse update. They use `model.objective,gradient` and `part_b_newton.armijo` only when line search is enabled. No Hessian evaluation/linear solve occurs in BFGS. | Source listing explicitly required; standalone `run` prints an example. Required comparison histories are in 1(e). |
+| 1(e) | `exercise1/part_e_comparison.py:compare` fixes both starts/unit steps and BFGS omega=.01; calls `part_b_newton.newton` and `part_d_bfgs.bfgs` with line search off and Newton fallback off. Those use the 1(a) model; `run` plots gradient norms including k=0. | `figures/ex1_part_e_newton_vs_bfgs.png`; `tables/ex1_part_e_newton_history.csv`, `ex1_part_e_bfgs_history.csv`; summary below. |
+| 2(a) | `exercise2/model.py:F,jacobian` implement the two equations/four analytical derivatives; `phi,grad_phi` compute F1²+F2² and 2J.T F. `residual_grid,phi_grid` evaluate the same equations for plots. | Written Jacobian derivation and basic derivative tests. No figure/listing explicitly requested here. |
+| 2(b) | `exercise2/part_b_contours.py:grid_minimum_candidates` compares each interior pixel with its eight neighbours using `model.phi_grid`; `run` plots the full square and uses `model.phi,F` to report approximate values/residuals. There is no optimiser/refinement here. | `figures/ex2_part_b_residual_contours.png`; `tables/ex2_part_b_minima.csv`. Count apparent minima; do not claim grid points are exact roots. |
+| 2(c) | `exercise2/part_c_intersections.py:graphical_estimates` samples the circle and cosine zero curves, finds sampled circle-residual sign changes along the cosine and makes one linear interpolation per crossing. `run` plots both curves and checks approximate residuals with `model.F`. | `figures/ex2_part_c_intersections.png`; `tables/ex2_part_c_graphical_intersections.csv`. Graphical precision only, with no iterative root refinement. |
+| 2(d) | **`exercise2/part_d_gradient_descent.py:gradient_descent`** contains residual/Jacobian evaluation, **2J.T F**, the fixed update, stopping and history lists in one function. Defaults gamma=0. It uses only `model.F,jacobian`; `residual_background` uses `model.phi_grid` for context; `run` plots all iterates. | `figures/ex2_part_d_gradient_descent.png`; `tables/ex2_part_d_gradient_descent_history.csv`; summary below. |
+| 2(e) | `exercise2/part_e_momentum.py:momentum_descent` selects 0<gamma<1 and calls the **same `part_d_gradient_descent.gradient_descent` loop**. The marked lines initialise `previous=0`, compute `d=gamma*previous+g`, then retain `previous=d.copy()`. The Jacobian/gradient calculation stays visible in that loop. | Source listing of the modifications explicitly required. No extra demonstration table; 2(f) gives the required gamma experiments. |
+| 2(f) | `exercise2/part_f_comparison.py:compare` starts fresh `.1,.3,.7` runs through `part_e_momentum.momentum_descent` and the shared 2(d) loop/model. `run` uses `part_d_gradient_descent.residual_background` and directly plots all paths/start/end markers. | `figures/ex2_part_f_momentum_comparison.png`; `tables/ex2_part_f_gamma_0.1_history.csv`, `_0.3_history.csv`, `_0.7_history.csv`; summary below. |
 
-## Exercise 2
+`experiments.py:run_all` executes exactly the six figure-producing experiments,
+collects the required run statuses/counts/final values in
+`tables/comparison_summary.csv`, and regenerates RESULTS.md. `table` only formats
+Markdown. The ordinary NumPy count of objective increases helps describe
+momentum oscillation; no extra experiment is run.
 
-| Part | Implementation, functions and responsibilities | Outputs under results/ |
-| --- | --- | --- |
-| 2(a) | `exercise2/model.py:F` returns the two residuals; `jacobian` contains all four analytical entries; `phi` computes F.T F; `grad_phi` computes 2J.T F. `hessian_phi` is supplementary for minimum classification/local-rate diagnostics, not descent updates. `residual_grid,phi_grid` evaluate the same equations on plotting arrays. | Derivative verification in `tests/test_exercise2.py`; no prescribed figure |
-| 2(b) | `exercise2/part_b_contours.py:grid_minimum_candidates` scans eight neighbours of interior grid pixels; `estimate_minima` refines candidates and tests residuals separately from stationarity; `run` draws isocontours on the full prescribed square and labels estimates. It uses `model.F,phi,grad_phi,hessian_phi,phi_grid`, `exercise1/part_b_newton.py:newton`, `exercise1/part_c_minima.py:distinct_stationary_points,classify_stationary_point`, and `utilities.armijo,checked_evaluation`. This Newton refinement is supplementary and does not change required descent trajectories. | `figures/ex2_part_b_residual_contours.png`; `tables/ex2_part_b_grid_candidates.csv`, `ex2_part_b_minima.csv` |
-| 2(c) | `exercise2/part_c_intersections.py:graphical_estimates` constructs the circle and cosine zero curves; `polyline_intersections,cross2` compute intersections of the **plotted segments**; `refine_intersections` separately bisects the scalar equation after eliminating y; `run` labels graphical coordinates and exports both kinds of estimates. `exercise2/model.py:F` checks the two residuals. | `figures/ex2_part_c_intersections.png`; `tables/ex2_part_c_graphical_intersections.csv`, `ex2_part_c_refined_intersections.csv` |
-| 2(d) | `exercise2/part_d_gradient_descent.py:gradient_descent` selects gamma=0 and the exact settings; **`fixed_descent` contains the update loop**, fixed lambda, residual-norm stopping and history; **`residual_state` calculates 2J.T F, phi and both norms** from `model.F,jacobian`; `add_residual_background` draws `model.phi_grid`; `run` saves the trajectory. `utilities.plot_path` marks initial/intermediate/final iterates. | `figures/ex2_part_d_gradient_descent.png`; `tables/ex2_part_d_gradient_descent_history.csv`, `ex2_part_d_summary.csv` |
-| 2(e) | `exercise2/part_e_momentum.py:momentum_descent` validates gamma, exposes the initial direction and delegates to **`part_d_gradient_descent.py:fixed_descent`**, where `MOMENTUM CHANGE 1/2/3` identify initial memory, `direction=gamma*previous+g`, and memory retention; `residual_state` supplies the analytical 2J.T F via `model.F,jacobian`. `run` executes gamma=.3 as a standalone illustration. Read **both files** for the requested listing. | `tables/ex2_part_e_momentum_history.csv`, `ex2_part_e_summary.csv` |
-| 2(f) | `exercise2/part_f_comparison.py:compare` runs fresh independent solver states for .1,.3,.7 with prescribed settings; `trajectory_statistics` measures path length, objective rises and step reversals; `run` draws full trajectories plus a solution detail. Calls `part_e_momentum.momentum_descent`, `part_d_gradient_descent.fixed_descent,residual_state,add_residual_background`, `model.F,jacobian,phi_grid`, and `utilities.plot_path`. | `figures/ex2_part_f_momentum_comparison.png`; `tables/ex2_part_f_gamma_0.1_history.csv`, `_0.3_history.csv`, `_0.7_history.csv`, `ex2_part_f_summary.csv` |
+`common/utilities.py` contains `output_dirs,write_csv,save_history,summary,
+save_figure,module_cli` and a noninteractive Matplotlib backend. Histories are
+exported with iteration zero; CSV schema changes are explained in the audit.
+`scripts/run_all.py` supplies source-tree imports and the output-directory option.
+There are exactly six figures and eleven CSVs.
 
-## Supplementary global analysis added in Review 1
-
-`exercise1/global_analysis.py` is separate from the original numerical methods:
-
-- `to_uv,from_uv,transformed_objective` implement and test the orthogonal change
-  of coordinates; `reduced_objective,reduced_derivative,reduced_second_derivative`
-  implement the reduced scalar function and analytical derivatives.
-- `Interval,outward` provide exact rational enclosure arithmetic with outward
-  dyadic rounding. `exp_point,exp_interval,sin_cos_point,sin_cos_interval` use
-  explicit Taylor remainder/monotonicity/Lipschitz bounds.
-- `derivative_bounds,objective_bounds` substitute those enclosures in j', j''
-  and j. `stationary_cover,refine_root` exclude zeros or prove unique roots
-  using exact signs. `verify_cover` recomputes each justification and verifies
-  a complete gap-free cover, including after loading exported CSV data.
-- `global_minimum_proof` checks strict value ordering among all isolated minima;
-  `ProofFailure` prevents a claim when any sign/coverage/order is unproved.
-  `run` exports `tables/ex1_part_c_interval_cover.csv` and
-  `tables/ex1_part_c_reduced_stationary_points.csv`. `part_c_minima.run` invokes
-  this supplementary check and changes only the contour's global-point legend;
-  its multistart method/results remain unchanged.
-- `experiments.run_all` includes the proof summary/table and explanatory
-  numerical conclusions in generated RESULTS.md, plus a separate
-  `1c_global_analysis` manifest entry. Original manifest experiment settings
-  remain unchanged.
-
-GLOBAL_MINIMUM_ANALYSIS.md explains the analytic reduction/existence/tail
-arguments that combine with the exact cover into a global proof. The source
-code is not a substitute for those arguments in the report.
-REPORT_SNIPPETS.md provides literal excerpts from the original algorithm files.
-`tests/test_review1_global_analysis.py` validates the reduction, derivative
-identities, interval arithmetic, root count/order, fail-closed behavior and CSV
-roundtrip. `tests/test_review1_reporting.py` checks excerpt fidelity, bypassing
-Armijo in 1(e), and exactly 200 permitted updates on nonconvergent test data.
-The original three test files are unchanged.
-
-## Shared recording and orchestration
-
-- `common/utilities.py:SolverResult` stores copied coordinates, gradient norms,
-  step lengths, parameters and exit statuses. `vector,finite,validate_controls`
-  validate shape/values/controls. These contain no hidden optimisation update.
-- `write_csv,save_history,summary` export real computed values and statuses;
-  `output_dirs` manages destinations; `pyplot,save_figure,plot_path` manage
-  headless 300 DPI plotting and trajectory markers; `module_cli` supplies each
-  question's `--output` command interface.
-- `experiments.py:run_all` calls all nine numerical `run` functions; analytical
-  1(a)/2(a) are exercised through their imports and tests. It adds resolution
-  checks using `part_b_contours.estimate_minima`, and local convergence diagnostics
-  using `model.hessian_phi` and `numpy.linalg.eigvalsh`. It writes
-  `tables/ex2_part_b_resolution_check.csv`, `tables/ex2_local_convergence_diagnostics.csv`,
-  `manifest.json` and `RESULTS.md`. `markdown_table` formats the computed digest.
-- `scripts/run_all.py:main` is the single entry point, including source-tree
-  import setup. It contains no numerical algorithm.
-
-## Verification locations
-
-- `tests/test_exercise1.py`: direct values, objective/gradient/Hessian finite
-  differences, symmetric Hessian, grid/scalar agreement, converged gradient
-  norms, accepted Armijo inequalities, prescribed fixed steps, classification
-  and deduplication.
-- `tests/test_numerical_methods.py`: exact Newton quadratic step, independently
-  known BFGS minima, expanded-versus-compact inverse update and secant equation,
-  positive definiteness, no BFGS linear solve, curvature/conditioning/descent
-  safeguards, exhausted searches, iteration limits and floating-point failures.
-- `tests/test_exercise2.py`: independent Jacobian/gradient/Hessian differences,
-  hand-computable ordinary/momentum steps, zero/custom initial memory, exact
-  settings and budgets, failure handling, graphical estimates and classification
-  of apparent minima separately from residual zero.
+The three test modules check the models/derivatives, independent quadratic and
+hand-computable updates, Armijo, inverse-BFGS secant identity, failures, prescribed
+settings, update budgets, clustering, and graphical-estimate precision.
+REPORT_SNIPPETS.md contains literal excerpts of the current functions; the
+separate report still needs the analytical derivations and numerical discussion.

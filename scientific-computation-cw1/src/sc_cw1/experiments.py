@@ -1,249 +1,137 @@
-"""Run every code-related question and produce a computed results digest."""
+"""Run only the coursework experiments and write a short numerical summary."""
 
 from collections import Counter
-import hashlib
-from importlib.metadata import version
-import json
-from pathlib import Path
-import platform
-import sys
-
 import numpy as np
 from sc_cw1.common.utilities import output_dirs, summary, write_csv
-from sc_cw1.exercise1 import part_b_newton, part_c_minima, part_d_bfgs, part_e_comparison
+from sc_cw1.exercise1 import part_c_minima, part_e_comparison
 from sc_cw1.exercise2 import (part_b_contours, part_c_intersections,
-                             part_d_gradient_descent, part_e_momentum, part_f_comparison)
-from sc_cw1.exercise2.model import hessian_phi
+                             part_d_gradient_descent, part_f_comparison)
 
-FIGURES = (
-    "ex1_part_c_contours.png", "ex1_part_e_newton_vs_bfgs.png",
-    "ex2_part_b_residual_contours.png", "ex2_part_c_intersections.png",
-    "ex2_part_d_gradient_descent.png", "ex2_part_f_momentum_comparison.png",
-)
+FIGURES = ["ex1_part_c_contours.png", "ex1_part_e_newton_vs_bfgs.png",
+           "ex2_part_b_residual_contours.png", "ex2_part_c_intersections.png",
+           "ex2_part_d_gradient_descent.png", "ex2_part_f_momentum_comparison.png"]
 
 
-def markdown_table(rows, columns):
-    """Render selected dictionary columns without adding a dataframe dependency."""
-    def cell(value):
-        return f"{value:.10g}" if isinstance(value, (float, np.floating)) else str(value)
+def table(rows, columns):
+    """Format computed values for RESULTS.md."""
     lines = ["| " + " | ".join(columns) + " |", "| " + " | ".join("---" for _ in columns) + " |"]
-    lines.extend("| " + " | ".join(cell(row[c]) for c in columns) + " |" for row in rows)
+    for row in rows:
+        cells = []
+        for column in columns:
+            value = row[column]
+            cells.append(f"{value:.9g}" if isinstance(value, (float, np.floating)) else str(value))
+        lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
 
 
-def run_all(output="results", *, verbose=True):
-    """Execute all experiments without changing required coursework parameters.
-
-    Generate RESULTS.md beside the selected results directory, diagnostics CSV,
-    grid-resolution check and a runtime/output manifest. No source files, remote
-    services or input documents are needed to reproduce these computations.
-    """
+def run_all(output="results"):
+    """Generate the six required figures and the tables needed to interpret them."""
     root = output_dirs(output).resolve()
-    functions = {
-        "1b": part_b_newton.run, "1c": part_c_minima.run, "1d": part_d_bfgs.run,
-        "1e": part_e_comparison.run, "2b": part_b_contours.run,
-        "2c": part_c_intersections.run, "2d": part_d_gradient_descent.run,
-        "2e": part_e_momentum.run, "2f": part_f_comparison.run,
-    }
-    results = {}
-    for part, run in functions.items():
-        if verbose:
-            print(f"Running {part}...", flush=True)
-        results[part] = run(root)
-
-    # Supplementary diagnostics are kept separate from required fixed-step runs.
-    resolution_rows = []
-    for grid_size in (201, 401, 801):
-        candidates, runs, points = part_b_contours.estimate_minima(grid_size)
-        resolution_rows.append(dict(grid_size=grid_size, grid_spacing=4/(grid_size-1),
-                                    raw_candidates=len(candidates), refined_minima=len(points),
-                                    failed_refinements=sum(not r.converged for r in runs)))
-    write_csv(root / "tables/ex2_part_b_resolution_check.csv", resolution_rows)
-    refined_roots = [r for r in results["2c"]["refined"] if r["status"] == "converged"]
-    diagnostics = []
-    for i, row in enumerate(refined_roots, 1):
-        eig = np.linalg.eigvalsh(hessian_phi((row["x1"], row["x2"])))
-        diagnostics.append(dict(root=i, x1=row["x1"], x2=row["x2"],
-            hessian_eigenvalue_min=float(eig[0]), hessian_eigenvalue_max=float(eig[-1]),
-            hessian_condition=float(eig[-1]/eig[0]),
-            gd_linear_factor_min_mode=float(1-.05*eig[0]),
-            gd_linear_factor_max_mode=float(1-.05*eig[-1])))
-    write_csv(root / "tables/ex2_local_convergence_diagnostics.csv", diagnostics)
-    required = [root / "figures" / name for name in FIGURES]
-    if any(not p.is_file() or p.stat().st_size == 0 for p in required):
-        raise RuntimeError("one or more required figures are missing/empty")
-
-    points = results["1c"]["points"]
-    global_analysis = results["1c"]["global_analysis"]
-    statuses = dict(Counter(r.status for r in results["1c"]["runs"]))
+    ex1c = part_c_minima.run(root)
+    ex1e = part_e_comparison.run(root)
+    ex2b = part_b_contours.run(root)
+    ex2c = part_c_intersections.run(root)
+    gd = part_d_gradient_descent.run(root)
+    momentum = part_f_comparison.run(root)
+    comparisons = list(ex1e.items()) + [("Gradient descent", gd)]
+    comparisons += [(f"Momentum {gamma}", result) for gamma, result in momentum.items()]
+    rows = []
+    for method, result in comparisons:
+        row = summary(result, method)
+        row.setdefault("residual_norm", "")
+        row["objective_increases"] = int(np.sum(np.diff(result["values"]) > 0))
+        rows.append(row)
+    write_csv(root/"tables/comparison_summary.csv", rows)
+    points = ex1c["points"]
     minima = [p for p in points if p["classification"] == "minimum"]
-    compare1 = [summary(r, method=n) for n, r in results["1e"].items()]
-    compare2 = [dict(summary(results["2d"], method="ordinary GD"),
-                     **part_f_comparison.trajectory_statistics(results["2d"]))]
-    compare2 += [dict(summary(r, method=f"momentum {g}"),
-                      **part_f_comparison.trajectory_statistics(r)) for g, r in results["2f"].items()]
-    all_outputs = sorted(p for folder in ("figures", "tables") for p in (root/folder).iterdir() if p.is_file())
-    file_list = "\n".join(f"- `{p.relative_to(root)}`" for p in all_outputs)
-    text = f"""# Computed results
+    states = dict(Counter(r["status"] for r in ex1c["runs"]))
+    late_ratio = gd["residual_norms"][-1]/gd["residual_norms"][-2]
+    text = f"""# Coursework numerical results
 
-Generated by `scripts/run_all.py` from the actual solver histories. Iterations
-count updates; history row zero is the initial guess. Run settings and exit
-messages are in the CSV summaries and manifest. Test evidence is recorded
-separately in VALIDATION.md; running experiments is not a test-suite result.
+Generated by `python scripts/run_all.py`. Iterations count completed updates;
+the initial guess is history row zero. These are computed numerical findings,
+not hardcoded answers. Required settings and conventions are in README.md.
 
-## Exercise 1(b) and 1(d)
+## 1(a/b/c): derivatives, Newton and numerical minima
 
-Newton/Armijo examples:
-{markdown_table([summary(r, run=i) for i, r in enumerate(results['1b'])], ['run', 'status', 'iterations', 'gradient_norm'])}
+The analytical formulas are in `exercise1/model.py`; Newton solves H*d=-grad
+and uses objective Armijo in 1(b/c). The 21×21 grid spans [-2,2]².
+Run statuses: {states}. Found {len(minima)} distinct local minima.
 
-BFGS/Armijo: {results['1d'].status}, {results['1d'].nit} updates,
-final gradient norm {results['1d'].history[-1]['gradient_norm']:.10g}.
-Fallbacks are explicit in each Newton history and counted per start in 1(c).
+{table(points, ['point_id', 'x1', 'x2', 'value', 'classification', 'runs_in_cluster'])}
 
-## Exercise 1(c)
+The lowest minimum found is the **numerical global-minimum candidate**.
+The comparison of converged objective values supports this answer; finite
+multistart searches do not prove it is the true global minimum over R² or that
+every stationary point was found. The saddle is not counted as a minimum.
+The initial-guess square is not a constraint on the original objective's domain.
+No formal global-optimality claim is made; see REVIEW_REQUIRED.md.
 
-21 by 21 starts spanning [-2,2]^2: {statuses}.
-Found {len(minima)} distinct local minima and {len(points)-len(minima)} other stationary point(s).
+The optional -gradient fallback is enabled for these multistart runs and counted
+separately in `ex1_part_c_multistart.csv`. Such steps are not ordinary Newton
+steps. The function definitions and relevant line search are mapped in CODE_MAP.md.
 
-{markdown_table(points, ['point_id', 'x1', 'x2', 'value', 'classification', 'eigenvalue_min', 'eigenvalue_max', 'runs_in_cluster'])}
+## 1(d/e): fixed-step Newton versus inverse BFGS
 
-The multistart grid alone is not a global proof. A separate analytic reduction
-and exact rational interval proof now establish the **unique true global minimum**.
-See GLOBAL_MINIMUM_ANALYSIS.md for the algebra, finite-domain/tail bounds,
-Taylor remainder bounds and proof-data interpretation. No solver was changed.
+Both required runs start at (-2,1), with alpha=1 and BFGS B0=.01 I.
+Neither uses line search or Newton fallback in this comparison. The additional
+Exercise 1 stopping choices are gradient norm <1e-6 and maxit=200.
 
-Every stationary point lies on x2=-x1. The reduced function is
-j(a)=exp(a²)+sin²(2a²)-2a²+2a-1/2. A checked cover of [-2,2] with
-{len(global_analysis['cells'])} rational cells proves exactly {len(global_analysis['roots'])}
-stationary roots there; analytic derivative bounds exclude all roots outside.
-Opposite endpoint signs establish existence, a fixed sign of j'' establishes
-uniqueness within each root cell, and the remaining cells exclude zero.
-Disjoint rational objective enclosures prove the ordering of the two minima.
+{table(rows[:2], ['method', 'status', 'iterations', 'x1', 'x2', 'gradient_norm'])}
 
-Supplementary root approximations (not replacements for multistart outcomes):
+The logarithmic vertical axis displays several orders of magnitude of gradient
+norm. Newton recomputes the Hessian; BFGS starts with a scaled identity and
+updates its inverse approximation from gradient differences. Thus the directions
+and histories differ even with the same unit step. These counts are observations
+for the specified start/scaling, not a general speed ranking. Newton can converge
+to stationary points that are not minima.
 
-{markdown_table(global_analysis['roots'], ['root_id', 'a', 'value', 'second_derivative', 'classification', 'is_global_minimum'])}
+## 2(a/b/c): residual equations and graphical estimates
 
-The reduced maximum is a two-dimensional saddle, because transverse curvature
-is strictly positive. The reduced minima have positive curvature in both
-directions. This explains the two minima and one saddle in the numerical search.
-The global point is (a_g,-a_g), where a_g is the unique root in the exact bracket
-[{global_analysis['global_root']['left']}, {global_analysis['global_root']['right']}].
-Decimals are approximations; the exact root definition and rational enclosures
-support the global statement. No failed run is classified as a minimum.
+The model uses phi=F1²+F2² and grad_phi=2J.T F. On the required [-2,2]² plot,
+{len(ex2b)} apparent grid minima are visible (grid spacing .01):
 
-## Exercise 1(e)
+{table(ex2b, ['x', 'y', 'phi', 'residual_norm'])}
 
-Required settings: x0=(-2,1), alpha=1, B0=0.01 I. No line search, Newton
-fallback, curvature skipping or matrix reset is used in this comparison.
-The supplementary stopping settings are gradient norm < 1e-6 and maxit=200.
+These are approximate grid locations, not refined stationary points or exact
+roots. The separate circle/cosine plot gives these graphical crossing estimates
+using one linear interpolation between sampled plotted values:
 
-{markdown_table(compare1, ['method', 'status', 'iterations', 'x1', 'x2', 'value', 'gradient_norm'])}
+{table(ex2c, ['intersection', 'x', 'y', 'f1', 'f2', 'residual_norm'])}
 
-The logarithmic y axis shows gradient norms spanning multiple orders of
-magnitude. Row zero is included. These counts describe this prescribed start
-and scaling, not a general speed ranking or a measured convergence order.
-Newton recomputes H and solves H*p=-g at every step; BFGS starts with .01 I
-and learns inverse-curvature information from successive gradient differences.
-Even with identical unit step lengths, those matrices produce different search
-directions and histories. These observations do not imply that Newton always
-converges to a minimum, or that its iteration count is always smaller.
+No iterative root refinement or exhaustive count is performed. The graph is
+the requested graphical analysis; residuals show the finite sampling accuracy.
 
-## Exercise 2(b) and 2(c)
+## 2(d/e/f): ordinary descent and momentum
 
-The 401-square grid has {len(results['2b']['candidates'])} eight-neighbour local-minimum
-candidates. Supplementary derivative refinement finds {len(results['2b']['points'])}
-local minima with positive Hessian eigenvalues; each has small residual.
-This is numerical evidence and a visual interpretation, not an exhaustive proof.
+All start at (0,-1), lambda=.05, tol=1e-6, maxit=200. The stopping statistic
+is ||F||₂, following Unit 10. Previous momentum is initially zero by convention.
+The printed recurrence is d=gamma*d_previous+2J.T F, x_next=x-lambda*d.
 
-{markdown_table(results['2b']['points'], ['x1', 'x2', 'value', 'residual_norm', 'is_root'])}
+{table(rows[2:], ['method', 'status', 'iterations', 'x1', 'x2', 'residual_norm', 'objective_increases'])}
 
-Graphical estimates are intersections of the actual 2001-sample plotted
-polylines, not root-solver outputs:
+Ordinary descent approaches the lower (negative-y) root. Its final residual
+ratio to the preceding iterate is {late_ratio:.6f}: progress remains a gradual
+fractional reduction while the residual tolerance is much finer than visual
+plotting accuracy. The curved residual valley and path show why many small
+fixed-step updates are needed. This does not imply divergence or establish a
+formal asymptotic convergence order.
 
-{markdown_table(results['2c']['graphical'], ['intersection', 'x1', 'x2', 'residual_norm'])}
+For these runs, all three momentum paths approach the upper (positive-y) root.
+Their first update matches ordinary descent; retained previous gradients change
+later directions and the basin reached. Increasing gamma from .1 to .3 reduces
+the count, but .7 takes more updates and has more objective increases/visible
+oscillation. These observations do not mean momentum is always faster, reaches
+the same root as ordinary descent, or escapes every local minimum.
 
-Separate supplementary bisection refinements:
+## Outputs for the report
 
-{markdown_table(results['2c']['refined'], ['intersection', 'x1', 'x2', 'residual_norm', 'status'])}
+Six 300 DPI PNGs are under `results/figures/`:
 
-Resolution check (not a completeness guarantee):
-
-{markdown_table(resolution_rows, ['grid_size', 'grid_spacing', 'raw_candidates', 'refined_minima', 'failed_refinements'])}
-
-## Exercise 2(d), 2(e), 2(f)
-
-Required settings: lambda=.05, x0=(0,-1), tol=1e-6, maxit=200;
-gamma=.1,.3,.7 in 2(f). Stopping uses ||F||_2<tol, an interpretation
-supported by Unit 10. Previous momentum is initially zero by convention.
-
-{markdown_table(compare2, ['method', 'status', 'iterations', 'x1', 'x2', 'residual_norm', 'objective_increases', 'step_reversals', 'path_length'])}
-
-Ordinary gradient descent approaches the lower (negative-y) solution. All
-three momentum runs approach the upper (positive-y) solution: momentum changes
-the basin reached as well as the iteration count. Speed comparisons therefore
-do not describe convergence to the same root.
-With zero initial memory, d_k=sum(i=0..k) gamma^(k-i)*grad_phi(x_i).
-The first update matches ordinary descent, but from the second update onward
-previous gradients alter the direction. The saved paths demonstrate the
-different destinations in this nonconvex landscape; they do not prove a general
-rule about which root momentum will reach or that it escapes every local minimum.
-
-For an exact root, H_phi=2 J.T J and local plain-descent error factors are
-1-lambda*mu_i, where mu_i are the residual-Hessian eigenvalues:
-
-{markdown_table(diagnostics, ['root', 'hessian_eigenvalue_min', 'hessian_eigenvalue_max', 'hessian_condition', 'gd_linear_factor_min_mode', 'gd_linear_factor_max_mode'])}
-
-Near the lower root, the slow factor near 0.90 means approximately linear,
-gradual decay in its slow mode. The path first travels around the residual
-landscape before entering this neighbourhood; the required residual tolerance
-is much tighter than the apparent graphical accuracy. This explains many
-updates without implying divergence or an exceptionally ill-conditioned root.
-
-Increasing gamma from .1 to .3 reduces the count here; increasing it further to
-.7 increases the count and introduces more objective rises and step reversals.
-All prescribed runs converge, but larger momentum is not uniformly better.
-An objective rise is allowed by the printed fixed-step momentum recurrence.
-
-## Generated figures and tables
-
-{file_list}
-
-`manifest.json` records Python/dependency versions, per-run parameters and
-SHA-256 hashes of these generated figures and tables. Public source materials
-are deliberately not included. Review assumptions in REVIEW_REQUIRED.md.
 """
-    (root.parent / "RESULTS.md").write_text(text, encoding="utf-8")
-    manifest = dict(python=sys.version, platform=platform.platform(),
-        dependencies={n: version(n) for n in ("numpy", "matplotlib", "pytest")},
-        experiments={"1b": [summary(r) for r in results["1b"]],
-                     "1c": dict(grid_size=21, tolerance=1e-6, maxit=200,
-                                deduplication_distance=1e-4, eigenvalue_tolerance=1e-7,
-                                fallback="steepest_descent", statuses=statuses),
-                     "1c_global_analysis": {
-                         key: global_analysis[key] for key in (
-                             "proof_status", "root_domain", "global_search_interval",
-                             "taylor_exp_degree", "taylor_trig_degree", "outward_bits")},
-                     "1d": summary(results["1d"]), "1e": compare1,
-                     "2b": dict(grid_size=401, refinement_gradient_tolerance=1e-7,
-                                resolution_check=resolution_rows),
-                     "2c": dict(samples=2001, refinement_residual_tolerance=1e-12),
-                     "2d": summary(results["2d"]), "2e": summary(results["2e"]),
-                     "2f": [summary(r) for r in results["2f"].values()]},
-        files={str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in all_outputs})
-
-    def json_safe(value):
-        """Use JSON null for undefined diagnostics rather than nonstandard NaN."""
-        if isinstance(value, dict):
-            return {k: json_safe(v) for k, v in value.items()}
-        if isinstance(value, list):
-            return [json_safe(v) for v in value]
-        if isinstance(value, float) and not np.isfinite(value):
-            return None
-        return value
-
-    (root / "manifest.json").write_text(json.dumps(json_safe(manifest), indent=2, allow_nan=False)+"\n", encoding="utf-8")
-    if verbose:
-        print(f"Generated {len(FIGURES)} figures and {len(all_outputs)-len(FIGURES)} tables under {root}")
-        print(f"Computed digest: {root.parent / 'RESULTS.md'}")
-    return results
+    text += "\n".join(f"- `{name}`" for name in FIGURES)
+    text += "\n\nEleven CSVs under `results/tables/` contain the start outcomes, stationary points,\ncomparison summary, required iteration histories and graphical estimates.\nSee CODE_MAP.md for each filename and REPORT_SNIPPETS.md for the three requested\ncode listings. The written analytical derivations and final PDF are separate.\n"
+    (root.parent/"RESULTS.md").write_text(text, encoding="utf-8")
+    print(f"Generated 6 required figures and 11 tables in {root}")
+    print(table(rows, ["method", "status", "iterations", "x1", "x2"]))
+    return dict(ex1c=ex1c, ex1e=ex1e, ex2b=ex2b, ex2c=ex2c, gd=gd, momentum=momentum)
