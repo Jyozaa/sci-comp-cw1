@@ -7,6 +7,7 @@ from sc_cw1.common.utilities import (
 )
 from .model import objective, gradient, hessian, objective_grid
 from .part_b_newton import newton
+from .global_analysis import run as run_global_analysis
 
 
 def classify_stationary_point(x, *, grad=gradient, hess=hessian,
@@ -96,6 +97,12 @@ def run(output="results", grid_size=21):
         rows.append(row)
     write_csv(root / "tables/ex1_part_c_multistart.csv", rows)
     write_csv(root / "tables/ex1_part_c_stationary_points.csv", points)
+    # Supplementary proof leaves all multistart iterates/results unchanged.
+    proof = run_global_analysis(root)
+    best = next(row for row in points if row["lowest_minimum_found"])
+    a = proof["global_root"]["a"]
+    if np.linalg.norm(np.array([best["x1"], best["x2"]])-np.array([a, -a])) > 1e-4:
+        raise RuntimeError("numerical lowest minimum does not match the proven global root")
     plt = pyplot()
     fig, ax = plt.subplots(figsize=(7.4, 6.2), layout="constrained")
     X, Y = np.meshgrid(np.linspace(-2, 2, 501), np.linspace(-2, 2, 501))
@@ -108,13 +115,13 @@ def run(output="results", grid_size=21):
         marker = "*" if best else ("o" if row["classification"] == "minimum" else "x")
         ax.scatter(row["x1"], row["x2"], marker=marker, s=160 if best else 55,
                    color="crimson" if best else "darkorange", zorder=4,
-                   label="Lowest minimum found (uncertified)" if best else f"{row['classification']} {row['point_id']}")
+                   label="Global minimum (see proof)" if best else f"{row['classification']} {row['point_id']}")
         ax.annotate(str(row["point_id"]), (row["x1"], row["x2"]), xytext=(7, 7), textcoords="offset points")
     ax.set(xlabel="$x_1$", ylabel="$x_2$", title=f"1(c): Newton multistart ({grid_size} × {grid_size} starts)",
            xlim=(-2, 2), ylim=(-2, 2), aspect="equal")
     ax.legend(fontsize=8, loc="upper right")
     save_figure(fig, root / "figures/ex1_part_c_contours.png")
-    return dict(starts=starts, runs=runs, points=points)
+    return dict(starts=starts, runs=runs, points=points, global_analysis=proof)
 
 
 if __name__ == "__main__":

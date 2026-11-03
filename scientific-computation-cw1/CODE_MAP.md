@@ -25,6 +25,41 @@ mathematical work. All plotting/export helpers are listed at the end.
 | 2(e) | `exercise2/part_e_momentum.py:momentum_descent` validates gamma, exposes the initial direction and delegates to **`part_d_gradient_descent.py:fixed_descent`**, where `MOMENTUM CHANGE 1/2/3` identify initial memory, `direction=gamma*previous+g`, and memory retention; `residual_state` supplies the analytical 2J.T F via `model.F,jacobian`. `run` executes gamma=.3 as a standalone illustration. Read **both files** for the requested listing. | `tables/ex2_part_e_momentum_history.csv`, `ex2_part_e_summary.csv` |
 | 2(f) | `exercise2/part_f_comparison.py:compare` runs fresh independent solver states for .1,.3,.7 with prescribed settings; `trajectory_statistics` measures path length, objective rises and step reversals; `run` draws full trajectories plus a solution detail. Calls `part_e_momentum.momentum_descent`, `part_d_gradient_descent.fixed_descent,residual_state,add_residual_background`, `model.F,jacobian,phi_grid`, and `utilities.plot_path`. | `figures/ex2_part_f_momentum_comparison.png`; `tables/ex2_part_f_gamma_0.1_history.csv`, `_0.3_history.csv`, `_0.7_history.csv`, `ex2_part_f_summary.csv` |
 
+## Supplementary global analysis added in Review 1
+
+`exercise1/global_analysis.py` is separate from the original numerical methods:
+
+- `to_uv,from_uv,transformed_objective` implement and test the orthogonal change
+  of coordinates; `reduced_objective,reduced_derivative,reduced_second_derivative`
+  implement the reduced scalar function and analytical derivatives.
+- `Interval,outward` provide exact rational enclosure arithmetic with outward
+  dyadic rounding. `exp_point,exp_interval,sin_cos_point,sin_cos_interval` use
+  explicit Taylor remainder/monotonicity/Lipschitz bounds.
+- `derivative_bounds,objective_bounds` substitute those enclosures in j', j''
+  and j. `stationary_cover,refine_root` exclude zeros or prove unique roots
+  using exact signs. `verify_cover` recomputes each justification and verifies
+  a complete gap-free cover, including after loading exported CSV data.
+- `global_minimum_proof` checks strict value ordering among all isolated minima;
+  `ProofFailure` prevents a claim when any sign/coverage/order is unproved.
+  `run` exports `tables/ex1_part_c_interval_cover.csv` and
+  `tables/ex1_part_c_reduced_stationary_points.csv`. `part_c_minima.run` invokes
+  this supplementary check and changes only the contour's global-point legend;
+  its multistart method/results remain unchanged.
+- `experiments.run_all` includes the proof summary/table and explanatory
+  numerical conclusions in generated RESULTS.md, plus a separate
+  `1c_global_analysis` manifest entry. Original manifest experiment settings
+  remain unchanged.
+
+GLOBAL_MINIMUM_ANALYSIS.md explains the analytic reduction/existence/tail
+arguments that combine with the exact cover into a global proof. The source
+code is not a substitute for those arguments in the report.
+REPORT_SNIPPETS.md provides literal excerpts from the original algorithm files.
+`tests/test_review1_global_analysis.py` validates the reduction, derivative
+identities, interval arithmetic, root count/order, fail-closed behavior and CSV
+roundtrip. `tests/test_review1_reporting.py` checks excerpt fidelity, bypassing
+Armijo in 1(e), and exactly 200 permitted updates on nonconvergent test data.
+The original three test files are unchanged.
+
 ## Shared recording and orchestration
 
 - `common/utilities.py:SolverResult` stores copied coordinates, gradient norms,

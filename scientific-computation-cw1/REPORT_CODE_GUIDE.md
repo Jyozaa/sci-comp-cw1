@@ -1,6 +1,11 @@
 # Guide for the separately written report
 
 This repository supplies code, computations and figures, not the final report.
+[REPORT_SNIPPETS.md](REPORT_SNIPPETS.md) contains literal excerpts of the actual
+Newton/Armijo, inverse-BFGS and shared momentum loop, with omissions identified.
+[GLOBAL_MINIMUM_ANALYSIS.md](GLOBAL_MINIMUM_ANALYSIS.md) supplies the new
+computer-assisted global proof; exact cover/root tables are supplementary to
+the original multistart outputs. No required solver history has been replaced.
 The original brief limits the single PDF to 15 pages. Show the analytical work
 and numerical interpretation in your own report; test output alone is not a
 derivation. Original source page numbers below refer to `gpt_copy.pdf`.
@@ -14,7 +19,7 @@ All code paths in this table are under `src/sc_cw1/`; output paths are under
 | --- | --- | --- | --- |
 | 1(a), original p.2 | `exercise1/model.py:objective,gradient`; `hessian` supports subsequent methods | Analytical first-order equations; independent checks in `tests/test_exercise1.py` | No explicit code listing requested here. Derive both gradient entries using the chain/product rules; set them to zero. Source code comments show the implemented formula but do not replace the derivation. |
 | 1(b), original pp.2–3 | `exercise1/part_b_newton.py:newton`; `common/utilities.py:armijo`; `exercise1/model.py:gradient,hessian`; `utilities.checked_evaluation` calculates norms | `tables/ex1_part_b_summary.csv` and one `ex1_part_b_newton_*.csv` for evidence | **Source code explicitly required.** Include Newton and Armijo mathematics together; explain x+=alpha*p as the line-search adaptation. Show or describe fallback branches, and identify which steps use them. |
-| 1(c), original p.3 | `exercise1/part_c_minima.py:multistart,distinct_stationary_points,classify_stationary_point,run`; imports the Newton method | `figures/ex1_part_c_contours.png`; `tables/ex1_part_c_stationary_points.csv`, `ex1_part_c_multistart.csv` | No extra listing explicitly requested. Give start grid, tol, clustering threshold, stationary-point eigenvalues and objective values. Count minima separately from the saddle. **Resolve R1 before asserting true global optimality.** |
+| 1(c), original p.3 | `exercise1/part_c_minima.py:multistart,distinct_stationary_points,classify_stationary_point,run`; imports the Newton method | `figures/ex1_part_c_contours.png`; `tables/ex1_part_c_stationary_points.csv`, `ex1_part_c_multistart.csv` | No extra listing explicitly requested. Give start grid, tol, clustering threshold, stationary-point eigenvalues and objective values. Count minima separately from the saddle. **Explain the separate reduction/interval proof in GLOBAL_MINIMUM_ANALYSIS.md; the multistart grid alone is not that proof.** |
 | 1(d), original p.3 | `exercise1/part_d_bfgs.py:bfgs,inverse_bfgs_update`; analytical gradient from model; `utilities.armijo` for normal runs | `tables/ex1_part_d_summary.csv`, `ex1_part_d_bfgs_history.csv` | **Source code explicitly required.** Include the expanded inverse update, B0=omega I, p=-Bg, s and y definitions, curvature check, and status logic. Do not substitute a direct-Hessian update. Explain why no Hessian or solve is needed. |
 | 1(e), original p.3 | `exercise1/part_e_comparison.py:compare,run`; fixed branches of Newton and BFGS | `figures/ex1_part_e_newton_vs_bfgs.png`; `tables/ex1_part_e_summary.csv`, both full histories | No extra listing explicitly requested. State x0=(-2,1), fixed alpha=1, BFGS omega=.01. Declare supplementary gradient tolerance/budget. Explain semilog y and initial k=0, and report actual outcomes rather than general speed claims. |
 | 2(a), original p.4 | `exercise2/model.py:F,jacobian`; `phi,grad_phi` support later methods | Four analytically derived Jacobian entries | No explicit code listing requested. Explain J is now the Jacobian, not Exercise 1's objective. Differentiate the residuals by hand. |

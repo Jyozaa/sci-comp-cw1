@@ -67,3 +67,18 @@ Prioritised teaching files inside `Week1-6.zip`:
 - `WEEK4/Unit10.pdf` — `3ed05ece48cef88f76be2b15b5be1edc3160bae0c02a217685aa8d329ae51c80`
 - `WEEK4/Unit11.pdf` — `7d85ffdbd90c2a42a35fe8fb66e97872012ac88e5e0c2cc309bdb20564c7118c`
 - `WEEK4/COMP5930M_Unit11.ipynb` — `0e02e99ab95df20cd4d0ee0c6356cee2de15586eb1d80cd8682615fbbb1568b0`
+
+## Review 1 source recheck (3 November 2026)
+
+All four original input hashes above were recomputed and are unchanged.
+The Unit 8 and Unit 11 notebook loops were inspected again: they support
+`norm(F,2)` stopping, and Unit 11's `k <= maxk` can permit an extra update.
+The original brief still controls the prescribed 200-update budget. No source
+convention was changed merely because it was unspecified. REVIEW_REQUIRED.md
+now classifies the brief-, lecture- and implementation-supported choices.
+
+The new coordinate-reduction idea was supplied by the independent reviewer.
+Its expansion, derivatives, tail bounds and exact rational interval proof are
+supplementary analysis authored and checked for Review 1, not formulas or
+additional instructions attributed to the original brief or lecturer.
+GLOBAL_MINIMUM_ANALYSIS.md explains the proof assumptions and numerical limits.

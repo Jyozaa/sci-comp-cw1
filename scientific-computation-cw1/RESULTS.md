@@ -30,9 +30,34 @@ Found 2 distinct local minima and 1 other stationary point(s).
 | 2 | -0.6594651568 | 0.6594651568 | -0.5599288238 | minimum | 1.573219167 | 1.691168365 | 232 |
 | 3 | -0.7423253616 | 0.7423253647 | -0.5557351519 | saddle | -1.959147399 | 2.123018971 | 4 |
 
-The lowest local minimum found is a **global candidate, not a certified global
-minimum**. The grid does not prove that every minimum in the plane was found.
-No failed run is classified as a minimum; a saddle is kept in the table.
+The multistart grid alone is not a global proof. A separate analytic reduction
+and exact rational interval proof now establish the **unique true global minimum**.
+See GLOBAL_MINIMUM_ANALYSIS.md for the algebra, finite-domain/tail bounds,
+Taylor remainder bounds and proof-data interpretation. No solver was changed.
+
+Every stationary point lies on x2=-x1. The reduced function is
+j(a)=exp(a²)+sin²(2a²)-2a²+2a-1/2. A checked cover of [-2,2] with
+40 rational cells proves exactly 3
+stationary roots there; analytic derivative bounds exclude all roots outside.
+Opposite endpoint signs establish existence, a fixed sign of j'' establishes
+uniqueness within each root cell, and the remaining cells exclude zero.
+Disjoint rational objective enclosures prove the ordering of the two minima.
+
+Supplementary root approximations (not replacements for multistart outcomes):
+
+| root_id | a | value | second_derivative | classification | is_global_minimum |
+| --- | --- | --- | --- | --- | --- |
+| 1 | -1.18530257 | -1.499144826 | 60.01173193 | minimum | True |
+| 2 | -0.742325369 | -0.5557351519 | -3.91829541 | saddle_in_2d | False |
+| 3 | -0.6594651568 | -0.5599288238 | 3.38233673 | minimum | False |
+
+The reduced maximum is a two-dimensional saddle, because transverse curvature
+is strictly positive. The reduced minima have positive curvature in both
+directions. This explains the two minima and one saddle in the numerical search.
+The global point is (a_g,-a_g), where a_g is the unique root in the exact bracket
+[-1303253958365/1099511627776, -325813489591/274877906944].
+Decimals are approximations; the exact root definition and rational enclosures
+support the global statement. No failed run is classified as a minimum.
 
 ## Exercise 1(e)
 
@@ -48,6 +73,11 @@ The supplementary stopping settings are gradient norm < 1e-6 and maxit=200.
 The logarithmic y axis shows gradient norms spanning multiple orders of
 magnitude. Row zero is included. These counts describe this prescribed start
 and scaling, not a general speed ranking or a measured convergence order.
+Newton recomputes H and solves H*p=-g at every step; BFGS starts with .01 I
+and learns inverse-curvature information from successive gradient differences.
+Even with identical unit step lengths, those matrices produce different search
+directions and histories. These observations do not imply that Newton always
+converges to a minimum, or that its iteration count is always smaller.
 
 ## Exercise 2(b) and 2(c)
 
@@ -101,6 +131,11 @@ Ordinary gradient descent approaches the lower (negative-y) solution. All
 three momentum runs approach the upper (positive-y) solution: momentum changes
 the basin reached as well as the iteration count. Speed comparisons therefore
 do not describe convergence to the same root.
+With zero initial memory, d_k=sum(i=0..k) gamma^(k-i)*grad_phi(x_i).
+The first update matches ordinary descent, but from the second update onward
+previous gradients alter the direction. The saved paths demonstrate the
+different destinations in this nonconvex landscape; they do not prove a general
+rule about which root momentum will reach or that it escapes every local minimum.
 
 For an exact root, H_phi=2 J.T J and local plain-descent error factors are
 1-lambda*mu_i, where mu_i are the residual-Hessian eigenvalues:
@@ -134,7 +169,9 @@ An objective rise is allowed by the printed fixed-step momentum recurrence.
 - `tables/ex1_part_b_newton_2.csv`
 - `tables/ex1_part_b_newton_3.csv`
 - `tables/ex1_part_b_summary.csv`
+- `tables/ex1_part_c_interval_cover.csv`
 - `tables/ex1_part_c_multistart.csv`
+- `tables/ex1_part_c_reduced_stationary_points.csv`
 - `tables/ex1_part_c_stationary_points.csv`
 - `tables/ex1_part_d_bfgs_history.csv`
 - `tables/ex1_part_d_summary.csv`

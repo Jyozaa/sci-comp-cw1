@@ -1,65 +1,94 @@
-# Independent review handoff
+# Independent review handoff — after Review 1
 
-The repository implements all code-related COMP5930M CW1 parts: hand-derived
-objective derivatives; Newton/Armijo with recorded optional descent fallback;
-multistart classification; the printed expanded inverse-BFGS update; prescribed
-unit-step comparison; nonlinear residual/Jacobian; residual contours and
-graphical intersections; fixed-step gradient descent and printed momentum.
-It includes tests, six 300 DPI figures, 26 computed CSVs and a runtime manifest.
-CODE_MAP.md locates every function/output; REPORT_CODE_GUIDE.md locates the
-three explicitly requested source listings. No complete report is supplied.
+Baseline: f21121f. The previous independent review found no confirmed core
+algorithmic errors and reproduced the main results. This focused revision
+preserves all objective/derivative, Newton, inverse-BFGS, fixed-step,
+residual/Jacobian, ordinary-descent and printed-momentum implementations.
+All prescribed parameters and original 87 tests are unchanged. Changes are
+supplementary mathematical analysis, proof data, report excerpts and reporting.
+No changes in this revision were committed or pushed.
 
-## Verified evidence
+## What is now resolved mathematically
 
-Read VALIDATION.md for the actual final test run and environment. Independent
-central differences check both exercises' derivatives, including direct
-objective second differences. Quadratic tests check Newton/BFGS; BFGS secant
-and expanded-versus-compact updates agree. Hand-computable steps check the
-residual-gradient factor of two and momentum recurrence. Tests cover Armijo,
-fixed steps, budgets, statuses, curvature and numerical failures.
+GLOBAL_MINIMUM_ANALYSIS.md independently verifies the proposed orthogonal
+reduction and j'/j'', proves all global minimizers lie on x2=-x1 with a in
+(-2,0), and excludes all reduced stationary points outside [-2,2].
 
-All coursework experiments were actually run. The 441-start Newton search
-found two local minima and one saddle; fixed Newton/BFGS converged in 5/12
-steps. Ordinary descent converged in 138 updates to the lower root. Momentum
-.1/.3/.7 converged in 64/36/79 updates to the upper root. Read the actual CSV
-residuals and histories before making broader convergence claims.
+`exercise1/global_analysis.py` supplies an exact Fraction interval proof:
+positive-series exponential tails, degree-95 sine/cosine Taylor remainders,
+Lipschitz extension and outward dyadic rounding enclose j'/j'' on rational
+cells. Forty cells cover [-2,2] without gaps. Every cell excludes a root or
+proves exactly one by strict endpoint signs and curvature. Exactly three
+stationary points exist: two minima and one saddle in the plane. Rational
+objective enclosures show a strict gap between the minima, establishing the
+unique true global minimizer near (-1.1853025702,1.1853025702), J≈-1.4991448256.
+The exact minimizer is defined by its isolated root, not a floating-point decimal.
 
-## Mathematical decisions needing review
+This is a rigorous computer-assisted argument, not a formally verified proof
+assistant development. Independent reviewers should concentrate on the analytic
+reduction/tails and the correctness of the interval implementation and exported
+cover. No floating-point sign or dense-grid count supports a proof decision.
+The proof refuses unresolved cells/signs/value orderings rather than labelling
+them complete. `verify_cover` also rechecks serialized proof CSV data.
 
-1. **Global optimality is unresolved.** The lowest minimum found has
-   J≈-1.4991448256 at (-1.1853025702,1.1853025702). No rigorous proof that it
-   is the true global minimum or that the finite search is exhaustive is supplied.
-2. Exercise 2 uses ||F||_2<1e-6, supported by Unit 10 but not explicitly
-   specified as the stopping statistic by the brief. Initial momentum is zero
-   by convention. Both choices affect trajectories/counts and are disclosed.
-3. Objective-J Armijo is a standard adaptation of the residual-based lecture
-   line search; ordinary Newton and optional -g steps are distinguished. The
-   inverse-BFGS curvature failure policy is an additional safety convention.
-4. Numerical settings not supplied for Exercise 1/geometry are documented;
-   finite grid and graphical estimates are not certified exhaustive counts.
+## What was executed and compared
 
-REVIEW_REQUIRED.md gives exact sources, implemented/skipped work, impact,
-resolution options and manual checks for each item. The report still needs
-personal analytical derivations, the requested code listings, references and
-the original 15-page-format check.
+**116 tests passed, 0 failed, 0 skipped**: 87 original tests plus 29 additions.
+`python scripts/run_all.py` completed all experiments and the proof, generating
+6 figures and 28 CSVs. VALIDATION.md contains actual commands and environment.
 
-## Code and numerical review priorities
+Compared with baseline f21121f:
 
-- `exercise1/model.py`: sine-square chain rule, mixed Hessian terms and factors.
-- `common/utilities.py:armijo` and `exercise1/part_b_newton.py:newton`: actual
-  objective decrease, non-descent handling, condition/fallback records, finite
-  failures and final-update stopping. No acceptance relaxation is used.
-- `exercise1/part_d_bfgs.py:inverse_bfgs_update,bfgs`: matrix multiplication order,
-  inverse formulation, tiny/nonpositive curvature and no hidden solve/reset.
-- `exercise1/part_e_comparison.py:compare`: prescribed fixed alpha=1 and
-  omega=.01, without applying the normal line-search/fallback branch.
-- `exercise2/part_d_gradient_descent.py:residual_state,fixed_descent` and
-  `part_e_momentum.py:momentum_descent`: 2J.T F, gradient evaluated at x_k,
-  d_-1=0, exact memory recurrence, fresh independent runs, residual stopping,
-  and no extra 201st update. The momentum wrapper alone is not the full listing.
-- Geometry scanning/clustering/refinement: only converged stationary points
-  are classified; graphical polyline locations are separate from bisection.
-  Assess tolerance/resolution sensitivity without confusing it with proof.
+- All 26 original CSV files and all original manifest run settings/results are
+  exactly unchanged, not merely equal at rounded display precision.
+- Five figures are identical. Only the 1(c) contour legend changes to refer to
+  the proven global minimum. Two separate proof CSVs were added.
+- Counts remain Newton/BFGS 5/12; ordinary GD 138 to the lower root;
+  gamma=.1,.3,.7 64/36/79 to the upper root. More momentum is not uniformly
+  faster, and this comparison does not concern convergence to the same root.
 
-Reproduce with `python -m pytest -q` and `python scripts/run_all.py` after the
-README installation. No GitHub commit, push or coursework submission was made.
+REPORT_SNIPPETS.md contains literal source excerpts for Newton/Armijo,
+expanded inverse BFGS and the shared momentum loop. A test checks excerpt
+fidelity; omitted setup, helper behavior and status/recording roles are stated.
+The important fallback and curvature checks are visible rather than hidden by
+an invented shorter algorithm. CODE_MAP.md and REPORT_CODE_GUIDE.md map them.
+
+## Convention audit and remaining work
+
+REVIEW_REQUIRED.md classifies details as (1) original brief, (2) lecture
+materials, (3) explicit implementation convention, or (4) still unproved if a
+stronger claim is desired. Residual-norm stopping is lecture-supported;
+strict equality handling, zero initial memory, objective-Armijo constants,
+optional fallback, curvature safeguards and unprescribed sampling controls
+are retained/disclosed conventions. They are not known bugs needing changes.
+
+Checks confirm at most 200 updates, no hidden line search/fallback in 1(e),
+recorded Newton fallback reasons, fresh zero momentum memory, the printed
+2J.T F recurrence and no altered inverse-BFGS update. A new test proves 1(e)
+bypasses Armijo entirely, even when Armijo might otherwise return alpha=1.
+
+No required algorithmic clarification remains blocking. An exhaustive Exercise 2
+root/minimum theorem is not supplied; its tasks' apparent/graphical estimates
+remain numerical. The separately written report must explain conventions,
+provide personal derivations/listings/references, fairly describe the new
+computer-assisted proof and fit within 15 pages. No complete report is supplied.
+
+## Review priorities
+
+1. GLOBAL_MINIMUM_ANALYSIS.md: expansion of shifted product; strict v² increase;
+   reduced derivatives; existence and analytic tail exclusion; mapping of
+   reduced curvature to two-dimensional classifications.
+2. `global_analysis.py`: exact arithmetic and outward rounding; Taylor remainder
+   bounds; zero-free/unique-root conditions; complete coverage; strict rational
+   objective ordering. Inspect both new CSVs and the fail-closed tests.
+3. `part_c_minima.run`: numerical data is preserved; proof is separate;
+   plotted global point must match the isolated root.
+4. `experiments.py`: generated conclusions separate proofs and observations,
+   include no universal Newton/momentum speed or basin guarantees, and preserve
+   all existing experimental settings.
+5. REPORT_SNIPPETS.md: check the literal excerpts remain appropriate report
+   listings and the stated omitted helpers have no hidden numerical behavior.
+
+REVIEW1_CHANGES.md records all substantive modifications and reproducibility
+commands. Reproduce tests/experiments from the project directory with
+`python -m pytest -q` and `python scripts/run_all.py` after README installation.

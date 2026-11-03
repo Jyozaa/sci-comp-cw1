@@ -4,10 +4,13 @@ Reproducible Python implementations of the visible COMP5930M Exercise 1 and 2
 requirements. The code uses NumPy, Matplotlib and pytest; no SciPy optimiser,
 automatic differentiation, GPU, remote service or paid API is required.
 
-All numerical sections are implemented. Exercise 1(c)'s lowest minimum is a
-**numerical global candidate**: a proof of true global optimality remains open.
-The residual stopping criterion and initial momentum are documented assumptions.
-See [REVIEW_REQUIRED.md](REVIEW_REQUIRED.md) before preparing the submission.
+All numerical sections are implemented. Review 1 adds a rigorous
+**computer-assisted global-minimum proof** for Exercise 1(c), using analytical
+reduction and exact rational root/value enclosures. See
+[GLOBAL_MINIMUM_ANALYSIS.md](GLOBAL_MINIMUM_ANALYSIS.md). The original algorithms,
+parameters and numerical histories are unchanged. The residual stopping criterion
+is lecture-supported; initial momentum and safety choices are explicit
+conventions classified in [REVIEW_REQUIRED.md](REVIEW_REQUIRED.md).
 
 ## Install and reproduce
 
@@ -32,7 +35,7 @@ with `python -m pip install . --no-deps --force-reinstall` before using the
 independent module commands, so the installed package reflects those edits.
 
 The all-experiment command takes seconds on a laptop. It regenerates the six
-300 DPI PNGs under `results/figures/`, 26 CSVs under `results/tables/`,
+300 DPI PNGs under `results/figures/`, 28 CSVs under `results/tables/`,
 `results/manifest.json`, and [RESULTS.md](RESULTS.md). The manifest records the
 runtime, run parameters, statuses and output SHA-256 hashes. Different platforms
 may produce small floating-point differences and different PNG hashes/fonts.
@@ -76,7 +79,7 @@ to be presented in the report. No complete coursework report is generated.
 | Experiment | Settings |
 | --- | --- |
 | 1(b), 1(c) | Newton with exact Hessian, objective Armijo; `tol=1e-6`, `maxit=200`; demonstration/search runs explicitly enable steepest-descent fallback |
-| 1(c) | 21×21 starts spanning [-2,2]²; clustering distance 1e-4; classification eigenvalue threshold 1e-7 |
+| 1(c) | Unchanged 21×21 starts spanning [-2,2]²; clustering distance 1e-4; classification eigenvalue threshold 1e-7; separate exact rational global proof |
 | 1(d) | Inverse BFGS, objective Armijo, B0=.01 I, `tol=1e-6`, `maxit=200`; invalid curvature fails explicitly |
 | 1(e) | **Prescribed** x0=(-2,1), alpha=1 for both solvers, BFGS omega=.01; no line search/fallback/skipped update; supplementary `tol=1e-6`, `maxit=200` |
 | 2(b) | 401×401 residual grid, supplementary local refinement; resolution checks at 201,401,801 |
@@ -107,7 +110,10 @@ but none of the required runs uses it.
 - [CODE_MAP.md](CODE_MAP.md): every part, function, shared mathematical helper and output.
 - [RESULTS.md](RESULTS.md): computed coordinates, convergence and trajectory evidence.
 - [VALIDATION.md](VALIDATION.md): actual verification performed and its limits.
-- [REVIEW_REQUIRED.md](REVIEW_REQUIRED.md): assumptions, unresolved global claim and options.
+- [GLOBAL_MINIMUM_ANALYSIS.md](GLOBAL_MINIMUM_ANALYSIS.md): reduction, tail bounds, exact root count and unique global minimum.
+- [REVIEW_REQUIRED.md](REVIEW_REQUIRED.md): classified conventions and remaining reporting limitations.
+- [REPORT_SNIPPETS.md](REPORT_SNIPPETS.md): literal report-ready source excerpts, checked against the executed algorithms.
+- [REVIEW1_CHANGES.md](REVIEW1_CHANGES.md): substantive modifications and baseline comparison.
 - [REPORT_CODE_GUIDE.md](REPORT_CODE_GUIDE.md): source listings and outputs for the separate report.
 - [SOURCE_AUDIT.md](SOURCE_AUDIT.md): source authority, equation checks and lecture support.
 - [REVIEW_HANDOFF.md](REVIEW_HANDOFF.md): concise independent-review brief.
