@@ -30,7 +30,10 @@ momentum oscillation; no extra experiment is run.
 save_figure,module_cli` and a noninteractive Matplotlib backend. Histories are
 exported with iteration zero; CSV schema changes are explained in the audit.
 `scripts/run_all.py` supplies source-tree imports and the output-directory option.
-There are exactly six figures and eleven CSVs.
+The default run generates six original figures and eleven CSVs.
+`scripts/prepare_report_updates.py` separately adds the three-panel momentum
+figure, two selected-iteration CSVs and REPORT_UPDATE_NOTES.md; it verifies the
+recomputed histories against the original CSVs and preserves the original files.
 
 The three test modules check the models/derivatives, independent quadratic and
 hand-computable updates, Armijo, inverse-BFGS secant identity, failures, prescribed

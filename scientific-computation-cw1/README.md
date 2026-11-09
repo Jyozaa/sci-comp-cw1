@@ -24,6 +24,10 @@ service, GPU or random seed is needed to run it. Source materials stay outside
 the repository. Use `--output /tmp/cw1/results` for another destination;
 RESULTS.md is written in that directory's parent.
 
+For separate report additions, run `python scripts/prepare_report_updates.py`.
+It adds momentum panels, two compact evidence tables and
+[REPORT_UPDATE_NOTES.md](REPORT_UPDATE_NOTES.md), preserving the original outputs.
+
 After source edits, reinstall with `python -m pip install . --no-deps --force-reinstall`
 before using the independent `python -m` commands, which import the installed
 package. pytest and `scripts/run_all.py` use `src/` directly.
