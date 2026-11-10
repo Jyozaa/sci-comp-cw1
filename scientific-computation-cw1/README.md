@@ -57,8 +57,8 @@ need their written derivations in the separately prepared report.
   at most 200 updates. These stopping numbers are implementation choices.
   The multistart grid is 21×21 over [-2,2]²; points within 1e-4 are merged.
 - Newton/Armijo starts at alpha=1 and halves rejected steps (c1=1e-4, up to
-  50 halvings). 1(b/c) use only the Newton direction. A singular/poorly
-  conditioned Hessian (limit 1e12) gives `numerical_failure`; a non-descent
+  50 halvings). Default 1(b/c) runs use only the Newton direction. A singular
+  or poorly conditioned Hessian (limit 1e12) gives `numerical_failure`; a non-descent
   direction or exhausted Armijo search gives `line_search_failure`. No gradient
   descent is substituted. All 441 starts are attempted; only converged runs
   are classified (148 converged, 293 non-descent failures in the current grid).
@@ -73,6 +73,13 @@ need their written derivations in the separately prepared report.
   searches have explicit statuses and retain the last accepted point.
   Each solver uses an explicit `k` counter in a `while` loop; only accepted
   updates increment it. Momentum shares the gradient-descent loop.
+
+An optional safeguard is available as `newton(x0, fallback=True)` **only with
+Armijo enabled**. It records accepted negative-gradient steps as
+`gradient_fallback`; `line_search=False` always remains pure Newton. Reproduce
+the separate comparison with `python scripts/compare_newton_robustness.py`;
+[NEWTON_ROBUSTNESS_REPORT_NOTES.md](NEWTON_ROBUSTNESS_REPORT_NOTES.md) links its
+new tables and figure. The original Newton runs and their output files stay strict.
 
 Solvers return ordinary dictionaries containing NumPy arrays (`iterates`,
 `values`, `gradient_norms`, `alphas`, `directions`) and `status`, `iterations`,

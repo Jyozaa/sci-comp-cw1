@@ -1,0 +1,3 @@
+method,starts,converged,failed,runs_with_fallback,accepted_fallback_steps,mean_converged_updates,max_converged_updates
+Strict Newton,441,148,293,0,0,6.013513513513513,11
+Safeguarded Newton,441,441,0,293,681,8.210884353741497,21

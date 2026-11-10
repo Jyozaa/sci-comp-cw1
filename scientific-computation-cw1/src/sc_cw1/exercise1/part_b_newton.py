@@ -21,11 +21,11 @@ def armijo(fun, x, value, g, delta, c1=1e-4, max_backtracks=50):
 
 
 def newton(x0, tol=1e-6, maxit=200, line_search=True,
-           fun=objective, grad=gradient, hess=hessian):
+           fun=objective, grad=gradient, hess=hessian, fallback=False):
     """Solve H*delta=-grad; stop at ||grad||₂<tol or after maxit updates.
 
-    An unusable Newton direction fails the run; no other direction is used.
-    Fixed comparison runs use line_search=False and exactly unit steps.
+    The default is strict Newton. fallback=True permits -grad only with Armijo.
+    line_search=False always uses pure Newton and exactly unit steps.
     """
     if tol <= 0 or maxit < 0:
         raise ValueError("tol must be positive and maxit nonnegative")
@@ -45,22 +45,29 @@ def newton(x0, tol=1e-6, maxit=200, line_search=True,
         while grad_norm >= tol and k < maxit and status != "numerical_failure":
             # Evaluate the Hessian.
             H = hess(x)
-            if not np.all(np.isfinite(H)):
-                status = "numerical_failure"
-                break
+            step_type = "newton"
             try:
-                if np.linalg.cond(H) > 1e12:
+                if not np.all(np.isfinite(H)) or np.linalg.cond(H) > 1e12:
                     raise np.linalg.LinAlgError("singular or poorly conditioned Hessian")
                 # Calculate the Newton direction.
                 delta = np.linalg.solve(H, -g)
             except np.linalg.LinAlgError:
-                status = "numerical_failure"
-                break
+                if not (fallback and line_search):
+                    status = "numerical_failure"
+                    break
+                delta, step_type = -g, "gradient_fallback"
+            if fallback and line_search and (not np.all(np.isfinite(delta)) or not (g @ delta < 0)):
+                # Negative gradient gives g.T*delta=-||g||² when Newton is unsuitable.
+                delta, step_type = -g, "gradient_fallback"
             if line_search and g @ delta >= 0:
                 status = "line_search_failure"
                 break
             # Choose an Armijo step, or the prescribed unit step in 1(e).
             alpha = armijo(fun, x, value, g, delta) if line_search else 1.0
+            if alpha is None and fallback and line_search and step_type == "newton":
+                # Retry once with -g only if it has not already been tried.
+                delta, step_type = -g, "gradient_fallback"
+                alpha = armijo(fun, x, value, g, delta)
             if alpha is None:
                 status = "line_search_failure"
                 break
@@ -78,7 +85,7 @@ def newton(x0, tol=1e-6, maxit=200, line_search=True,
             values.append(value)
             gradient_norms.append(grad_norm_new)
             alphas.append(alpha)
-            step_types.append("newton")
+            step_types.append(step_type)
             directions.append(delta.copy())
             k += 1
     if status != "numerical_failure" and grad_norm < tol:

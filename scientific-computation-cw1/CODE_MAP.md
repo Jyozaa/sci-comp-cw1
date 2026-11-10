@@ -42,3 +42,12 @@ REPORT_SNIPPETS.md contains literal excerpts of the current functions; the
 separate report still needs the analytical derivations and numerical discussion.
 It also includes the original objective/gradient/Hessian and residual/Jacobian
 definitions from the two model files, so no parallel implementation is needed.
+
+`part_b_newton.newton` additionally accepts `fallback=False` (strict default).
+The opt-in `fallback=True` selects recorded `gradient_fallback` directions only
+with Armijo. `scripts/compare_newton_robustness.py` runs the unchanged strict
+grid and the safeguarded variant separately, reuses `distinct_stationary_points`
+and Hessian classification, and writes only new `ex1_newton_robustness_*`
+files plus `ex1_newton_origin_history.csv`. See
+[NEWTON_ROBUSTNESS_REPORT_NOTES.md](NEWTON_ROBUSTNESS_REPORT_NOTES.md). The normal
+1(c) runner and fixed-step 1(e) comparison do not enable the safeguard.
